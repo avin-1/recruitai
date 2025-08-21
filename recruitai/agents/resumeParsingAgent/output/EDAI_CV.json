@@ -1,0 +1,25 @@
+{
+  "title": "Your Name",
+  "personal_info": {
+    "name": "Your Name",
+    "email": null,
+    "phone": null,
+    "raw_text": "Your Name"
+  },
+  "experience": [
+    "Designation Jan 2021 - present long long line of blah blah that will wrap when the table fills the column width long long line of blah blah that will wrap when the table fills the column width long long line of blah blah that will wrap when the table fills the column width long long line of blah blah that will wrap when the table fills the column width Designation Mar 2019 - Jan 2021 – long long line of blah blah that will wrap when the table fills the column width – again, long long line of blah blah that will wrap when the table fills the column width but this time even more long long line of blah blah. again, long long line of blah blah that will wrap when the table fills the column width but this time even more long long line of blah blah"
+  ],
+  "education": [
+    ""
+  ],
+  "skills": [
+    "Some Skills This, That, Some of this and that etc. Some More Skills Also some more of this, Some more that, And some of this and that etc. Last updated: August 21, 2025"
+  ],
+  "other": {
+    "§  username  |  ï  username  |    mysite.com  |  #  email@mysite.com  |  H  +00.00.000.000": "",
+    "Summary": "This CV can also be automatically complied and published using GitHub Actions. For details,  click here .",
+    "Projects": "Some Project Link to Demo long long line of blah blah that will wrap when the table fills the column width long long line of blah blah that will wrap when the table fills the column width long long line of blah blah that will wrap when the table fills the column width long long line of blah blah that will wrap when the table fills the column width",
+    "(GPA: 4.0/4.0)": "",
+    "Publications": "Last Name, First Name and First Name Other Last Name (Sept. 2019). “Paper: This is the name of the paper”. In:  Some Journal  99.18, pp. 2200–2300.  url :  https://some-link.com . Last Name, First Name and First Name Again Last Name (Sept. 2022). “Paper II: This is another paper”. In:  Some Journal  99.18, pp. 2200–2300.  url :  https://some-other-link.com ."
+  }
+}

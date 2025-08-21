@@ -1,0 +1,55 @@
+{
+  "candidate_name": "Your Name",
+  "contact_info": {
+    "email": "email@mysite.com",
+    "phone": "+00.00.000.000",
+    "linkedin_url": null
+  },
+  "summary": "This CV can also be automatically complied and published using GitHub Actions. For details, click here .",
+  "experience": [
+    {
+      "job_title": "Designation",
+      "company_name": "",
+      "start_date": "Jan 2021",
+      "end_date": "present",
+      "responsibilities": [
+        "long long line of blah blah that will wrap when the table fills the column width long long line of blah blah that will wrap when the table fills the column width long long line of blah blah that will wrap when the table fills the column width long long line of blah blah that will wrap when the table fills the column width long long line of blah blah that will wrap when the table fills the column width"
+      ]
+    },
+    {
+      "job_title": "Designation",
+      "company_name": "",
+      "start_date": "Mar 2019",
+      "end_date": "Jan 2021",
+      "responsibilities": [
+        "long long line of blah blah that will wrap when the table fills the column width again, long long line of blah blah that will wrap when the table fills the column width but this time even more long long line of blah blah. again, long long line of blah blah that will wrap when the table fills the column width but this time even more long long line of blah blah"
+      ]
+    }
+  ],
+  "education": [],
+  "skills": {
+    "languages": [
+      "Some Skills This",
+      "That",
+      "Some of this and that etc. Some More Skills Also some more of this",
+      "Some more that",
+      "And some of this and that etc. Last updated: August 21, 2025"
+    ],
+    "frameworks_tools": [],
+    "databases": [],
+    "ai_ml": [],
+    "cloud_devops": []
+  },
+  "projects": [
+    {
+      "project_name": "Some Project",
+      "year": "",
+      "description": "Link to Demo long long line of blah blah that will wrap when the table fills the column width long long line of blah blah that will wrap when the table fills the column width long long line of blah blah that will wrap when the table fills the column width long long line of blah blah that will wrap when the table fills the column width"
+    }
+  ],
+  "awards_honors": [],
+  "publications": [
+    "Last Name, First Name and First Name Other Last Name (Sept. 2019). “Paper: This is the name of the paper”. In: Some Journal 99.18, pp. 2200–2300. url : https://some-link.com .",
+    "Last Name, First Name and First Name Again Last Name (Sept. 2022). “Paper II: This is another paper”. In: Some Journal 99.18, pp. 2200–2300. url : https://some-other-link.com ."
+  ]
+}
