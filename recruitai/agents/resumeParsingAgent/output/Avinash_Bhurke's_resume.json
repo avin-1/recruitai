@@ -1,0 +1,141 @@
+{
+  "title": "A VINASH  B HURKE",
+  "headings": [
+    "Education",
+    "Vishwakarma Institute of technology, Pune, India",
+    "2023–2027 (Expected)",
+    "Blue Bells Jr. College, India",
+    "2022-2023",
+    "Universal English Medium School, India",
+    "2020-2021",
+    "Class X, Percentage marks:  93.20",
+    "Skills",
+    "Projects",
+    "Voice Over Generation Bot",
+    "Virtual Operating System simulation (MOS)",
+    "Online Bookstore (Data Base Management System)",
+    "Academic and Extracurricular Achievements",
+    "Positions of Responsibility",
+    "DSC | AIML-Team Member",
+    "Nov’24 - Present",
+    "EPEC | Outreach and Publicity volunteer",
+    "Aug’23 – June’24"
+  ],
+  "content_by_heading": {
+    "Education": {
+      "short_sentences": [],
+      "action_words": [],
+      "full_text": ""
+    },
+    "Vishwakarma Institute of technology, Pune, India": {
+      "short_sentences": [],
+      "action_words": [],
+      "full_text": ""
+    },
+    "2023–2027 (Expected)": {
+      "short_sentences": [],
+      "action_words": [],
+      "full_text": ""
+    },
+    "Blue Bells Jr. College, India": {
+      "short_sentences": [],
+      "action_words": [],
+      "full_text": ""
+    },
+    "2022-2023": {
+      "short_sentences": [],
+      "action_words": [],
+      "full_text": ""
+    },
+    "Universal English Medium School, India": {
+      "short_sentences": [],
+      "action_words": [],
+      "full_text": ""
+    },
+    "2020-2021": {
+      "short_sentences": [],
+      "action_words": [],
+      "full_text": ""
+    },
+    "Class X, Percentage marks:  93.20": {
+      "short_sentences": [],
+      "action_words": [],
+      "full_text": ""
+    },
+    "Skills": {
+      "short_sentences": [],
+      "action_words": [],
+      "full_text": "C++ , C , Machine Learning , JavaScript , NodeJS , React , MongoDB , MySQL , Git, AIML, RAG, ChromaDB,SQLite3, Deep Learning."
+    },
+    "Projects": {
+      "short_sentences": [],
+      "action_words": [],
+      "full_text": ""
+    },
+    "Voice Over Generation Bot": {
+      "short_sentences": [
+        "• Integrated video processing (OpenCV) and text-to-speech (gTTS), automating commentary for 100+ frames"
+      ],
+      "action_words": [
+        "developed"
+      ],
+      "full_text": "• Commentary Bot with API Integration - Developed a Python - based tool to generate voiceover scripts from video frames using OpenAI and Gemini APIs. • Integrated video processing (OpenCV) and text-to-speech (gTTS), automating commentary for 100+ frames."
+    },
+    "Virtual Operating System simulation (MOS)": {
+      "short_sentences": [
+        "• OS Virtual Simulation (Phase 1) -Built a C++-based simulation of a multiprogramming OS with memory management and job execution",
+        "• Implemented interrupt handling (SI) for read, write, and terminate operations, processing 10-word blocks"
+      ],
+      "action_words": [
+        "implemented"
+      ],
+      "full_text": "• OS Virtual Simulation (Phase 1) -Built a C++-based simulation of a multiprogramming OS with memory management and job execution. • Implemented interrupt handling (SI) for read, write, and terminate operations, processing 10-word blocks."
+    },
+    "Online Bookstore (Data Base Management System)": {
+      "short_sentences": [
+        "• Led a team of 4 to develop a PHP-based online bookstore with MySQL database for books and orders",
+        "• Designed stored procedures and triggers, optimizing genre-based queries and logging for 50+ book entries"
+      ],
+      "action_words": [
+        "designed",
+        "led"
+      ],
+      "full_text": "• Led a team of 4 to develop a PHP-based online bookstore with MySQL database for books and orders. • Designed stored procedures and triggers, optimizing genre-based queries and logging for 50+ book entries."
+    },
+    "Academic and Extracurricular Achievements": {
+      "short_sentences": [
+        "( link ) ● Ranked 482 out of 5,000 students in Geeks for Geeks institute coding leaderboard"
+      ],
+      "action_words": [
+        "published",
+        "ranked"
+      ],
+      "full_text": "● 2x Scopus Indexed Research Papers Published ( link ) ● Published \" Smart Automated Table Cleaning \" research paper in a Scopus-indexed journal ( link ) ● Published a research paper titled  “Morse Code Based Two-Way Communication Device for Visually Impaired and Mute” at the 3rd IEEE International Conference on Device Intelligence, Computing, and Communication Technologies (DICCT-2025), Graphic Era University, Dehradun. ( link ) ● Ranked 482 out of 5,000 students in Geeks for Geeks institute coding leaderboard."
+    },
+    "Positions of Responsibility": {
+      "short_sentences": [],
+      "action_words": [],
+      "full_text": ""
+    },
+    "DSC | AIML-Team Member": {
+      "short_sentences": [],
+      "action_words": [],
+      "full_text": ""
+    },
+    "Nov’24 - Present": {
+      "short_sentences": [],
+      "action_words": [],
+      "full_text": ""
+    },
+    "EPEC | Outreach and Publicity volunteer": {
+      "short_sentences": [],
+      "action_words": [],
+      "full_text": ""
+    },
+    "Aug’23 – June’24": {
+      "short_sentences": [],
+      "action_words": [],
+      "full_text": ""
+    }
+  }
+}
