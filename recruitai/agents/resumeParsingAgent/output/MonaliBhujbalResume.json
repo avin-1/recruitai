@@ -1,0 +1,33 @@
+{
+  "title": "About me",
+  "personal_info": {
+    "name": "Degree Institute Board / University CGPA/Percentage Year Btech Vishwakarma Institute of Technology, Pune SPPU 8.89 2023-2027 Secondary Vijayamala Vidya Mandir School, Shirur SSC 97.00% 2021",
+    "email": null,
+    "phone": null,
+    "raw_text": "Degree Institute Board / University CGPA/Percentage Year Btech Vishwakarma Institute of Technology, Pune SPPU 8.89 2023-2027 Secondary Vijayamala Vidya Mandir School, Shirur SSC 97.00% 2021"
+  },
+  "experience": [],
+  "education": [],
+  "skills": [],
+  "other": {
+    "Degree": "",
+    "Institute": "",
+    "Board / University": "",
+    "CGPA/Percentage": "",
+    "Year": "",
+    "Btech": "",
+    "Vishwakarma Institute of Technology, Pune": "",
+    "SPPU": "",
+    "8.89": "",
+    "2023-2027": "",
+    "Secondary": "",
+    "Vijayamala Vidya Mandir School, Shirur": "",
+    "SSC": "",
+    "97.00%": "",
+    "2021": "About me Software-focused Computer Engineering student with experience in Java, C and SQL. Built projects ranging from AI-powered bots to Java- based desktop apps and IoT integrations. Strong grasp of DSA, OOP, and DBMS. Passionate about building practical, scalable, and impactful software systems.",
+    "Projects": "•   Commentary Bot                                                                                                                                                                              (March 2024) •   Developed an AI-driven bot capable of generating real-time sports commentary using Natural Language Processing (NLP) and Machine Learning. •   Implemented context-aware sentence construction that mimics the tone and style of professional sports commentators. •   Designed the system to dynamically adjust tone and phrasing based on the real-time status of the match. •   Tech Stack consisted of Python, NLP libraries (e.g., spaCy, NLTK), machine learning models..",
+    "Expense Tracker Application                                                                                                                                           (June 2024)": "•   Built a Java-based desktop application to manage and visualize personal financial data effectively. •   Implemented features such as category-wise spending analysis and a user-friendly interface for intuitive interaction. •   Designed the system to be lightweight, efficient, and ideal for students or households to monitor daily expenses. •   Tech stack consisted of Java (Swing/JavaFX), JDBC, MySQL Workbench, Object-Oriented Programming, File I/O. •   Smart Chessboard: An Automated Move Tracking System                                                                                             (Jan 2025) •   Developed an intelligent chessboard capable of tracking piece movements in real-time using embedded sensors and software integration. •   Integrated machine learning for move prediction using TensorFlow, and enabled remote multiplayer interaction via WebRTC. •   Designed the system to process sensor data and sync moves visually for remote users, bridging physical gameplay with digital tracking. •   Tech Stack included Python (TensorFlow), WebRTC (JavaScript), and hardware components NodeMCU, Hall Effect sensors, multiplexers. Technical Skills •   Programming Languages: Java, C, SQL •   Tools and Frameworks: Html, CSS, JS •   CS Fundamentals  : Data Structures and Algorithms, problem-solving, DBMS, OOP, OS.",
+    "Volunteering": "•   Event Coordinator – VIT Event Planning and Execution Committee: Assisted in organizing and managing college-level",
+    "technical and cultural events by supporting logistics, guest coordination, and registration. Contributed to the seamless": "•   Published Patents: “Automatic Chess Piece Move Detection and Validation Using Arduino Nano and Reed Switch” (App. No. 202521055419, Jul 2025) and  Unauthorized Driving Prevention System”  (App. No. 202521055424 A, Jul 2025). •   Published two research papers:  “IoT-Driven Robots: Revolutionizing Automation”  in IJERT and  “Smart Automated Table Cleaning Device”  in IEEE Xplore. •   School topper, Was awarded as the School topper for the year 2021 with 97.00%. •   Represented at the district level in badminton, won multiple school sports medals."
+  }
+}
