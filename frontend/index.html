@@ -1,13 +1,27 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Welcomeeeeee</title>
+    <title>RecruitAI</title>
+
+    <!-- Favicon (optional, customize for your project) -->
+    <link rel="icon" type="image/png" href="/favicon.png" />
+
+    <!-- Tailwind (if you’re using CDN; skip this if you’re using PostCSS/build setup) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Google Fonts: Inter (already imported in App.jsx, optional to add here instead) -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
   </head>
-  <body>
+  <body class="antialiased bg-sky-50">
+    <!-- React mounts here -->
     <div id="root"></div>
+
+    <!-- Your bundled JS file will be injected here -->
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
