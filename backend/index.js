@@ -10,7 +10,7 @@ const PORT = process.env.PORT || 5000;
 
 // Middlewares
 app.use(express.json());
-app.use(cors()); // you can restrict origin: app.use(cors({ origin: 'http://localhost:3000' }))
+app.use(cors()); 
 
 // Routes
 app.use('/api/auth', authRouter);
