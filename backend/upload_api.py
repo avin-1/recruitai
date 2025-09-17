@@ -3,6 +3,7 @@ from flask_cors import CORS
 from pymongo import MongoClient
 from dotenv import load_dotenv
 import os
+from bson.objectid import ObjectId
 
 # Load .env
 load_dotenv()
@@ -60,14 +61,14 @@ def get_profiles():
 @app.route("/delete", methods=["POST"])
 def delete_profile():
     data = request.get_json()
-    job_title = data.get("job_title")
-    if not job_title:
-        return jsonify({"error": "No job_title provided"}), 400
+    profile_id = data.get("profile_id")
+    if not profile_id:
+        return jsonify({"error": "No profile_id provided"}), 400
     try:
-        result = collection.delete_one({"job_title": job_title})
+        result = collection.delete_one({"_id": ObjectId(profile_id)})
         if result.deleted_count == 0:
             return jsonify({"error": "Profile not found"}), 404
-        return jsonify({"message": f'Profile "{job_title}" deleted successfully'}), 200
+        return jsonify({"message": f'Profile deleted successfully'}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -75,14 +76,14 @@ def delete_profile():
 @app.route("/approve", methods=["POST"])
 def approve_profile():
     data = request.get_json()
-    job_title = data.get("job_title")
-    if not job_title:
-        return jsonify({"error": "No job_title provided"}), 400
+    profile_id = data.get("profile_id")
+    if not profile_id:
+        return jsonify({"error": "No profile_id provided"}), 400
     try:
-        result = collection.update_one({"job_title": job_title}, {"$set": {"approved": True}})
+        result = collection.update_one({"_id": ObjectId(profile_id)}, {"$set": {"approved": True}})
         if result.matched_count == 0:
             return jsonify({"error": "Profile not found"}), 404
-        return jsonify({"message": f'Profile "{job_title}" approved successfully'}), 200
+        return jsonify({"message": f'Profile approved successfully'}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -90,18 +91,22 @@ def approve_profile():
 @app.route("/modify", methods=["POST"])
 def modify_profile():
     data = request.get_json()
-    original_job_title = data.get("original_job_title")
+    profile_id = data.get("profile_id")
     new_profile_data = data.get("new_profile_data")
 
-    if not original_job_title or not new_profile_data:
-        return jsonify({"error": "Missing original_job_title or new_profile_data"}), 400
+    if not profile_id or not new_profile_data:
+        return jsonify({"error": "Missing profile_id or new_profile_data"}), 400
 
     try:
         # Ensure the 'approved' flag is set to False
         new_profile_data['approved'] = False
 
+        # Remove _id from the update data, as it cannot be changed
+        if '_id' in new_profile_data:
+            del new_profile_data['_id']
+
         result = collection.update_one(
-            {"job_title": original_job_title},
+            {"_id": ObjectId(profile_id)},
             {"$set": new_profile_data}
         )
 
