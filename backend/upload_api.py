@@ -12,7 +12,7 @@ if not MONGO_URI:
     raise ValueError("MONGODB_URI not found in .env")
 
 # MongoDB setup
-DB_NAME = "mydatabase"           # replace with your database name
+DB_NAME = "profiles"           # replace with your database name
 COLLECTION_NAME = "json_files"   # replace with your collection name
 client = MongoClient(MONGO_URI)
 db = client[DB_NAME]
