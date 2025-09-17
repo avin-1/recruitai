@@ -3,8 +3,12 @@ from flask_cors import CORS
 from pymongo import MongoClient
 from dotenv import load_dotenv
 import os
-import subprocess
 import sys
+
+# Add the parent directory of 'agents' to the Python path
+# This is necessary so we can import from 'agents.jobdescription.graph'
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from agents.jobdescription.graph import app as langgraph_app
 
 # Load .env
 load_dotenv()
@@ -14,23 +18,23 @@ if not MONGO_URI:
     raise ValueError("MONGODB_URI not found in .env")
 
 # MongoDB setup
-DB_NAME = "profiles"
-COLLECTION_NAME = "json_files"
+DB_NAME = "profiles"           # replace with your database name
+COLLECTION_NAME = "json_files"   # replace with your collection name
 client = MongoClient(MONGO_URI)
-db = client[DB_NAME]
-collection = db[COLLECTION_NAME]
+db = client["profiles"]
+collection = db["json_files"]
 
 # Flask app
 app = Flask(__name__)
 CORS(app)  # enable CORS for all routes
 
-# --- Paths ---
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Set upload folder relative to backend directory
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # backend directory
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "..", "agents", "jobdescription", "input")
 ORCHESTRATOR_SCRIPT = os.path.join(BASE_DIR, "..", "agents", "jobdescription", "main.py")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# ---------------- File Upload Endpoint ----------------
+# ---------------- File Upload and Processing Endpoint ----------------
 @app.route("/upload", methods=["POST"])
 def upload_file():
     if "file" not in request.files:
@@ -40,20 +44,11 @@ def upload_file():
     if file.filename == "":
         return jsonify({"error": "No selected file"}), 400
 
+    # Save the file temporarily
     filepath = os.path.join(UPLOAD_FOLDER, file.filename)
     file.save(filepath)
 
-    # Trigger the LangGraph orchestrator script in the background
-    try:
-        print(f"Triggering orchestrator for: {filepath}")
-        # Use the same Python executable that is running the Flask app
-        python_executable = sys.executable
-        subprocess.Popen([python_executable, ORCHESTRATOR_SCRIPT, filepath])
-        message = f"File '{file.filename}' uploaded successfully and processing has started."
-        return jsonify({"message": message}), 200
-    except Exception as e:
-        print(f"Failed to trigger orchestrator: {e}")
-        return jsonify({"error": "File uploaded, but failed to start processing."}), 500
+    return jsonify({"message": f"File uploaded successfully: {file.filename}"}), 200
 
 # ---------------- Retrieve Job Profiles ----------------
 @app.route("/profiles", methods=["GET"])
