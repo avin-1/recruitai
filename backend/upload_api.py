@@ -71,6 +71,47 @@ def delete_profile():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# ---------------- Approve Profile ----------------
+@app.route("/approve", methods=["POST"])
+def approve_profile():
+    data = request.get_json()
+    job_title = data.get("job_title")
+    if not job_title:
+        return jsonify({"error": "No job_title provided"}), 400
+    try:
+        result = collection.update_one({"job_title": job_title}, {"$set": {"approved": True}})
+        if result.matched_count == 0:
+            return jsonify({"error": "Profile not found"}), 404
+        return jsonify({"message": f'Profile "{job_title}" approved successfully'}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ---------------- Modify Profile ----------------
+@app.route("/modify", methods=["POST"])
+def modify_profile():
+    data = request.get_json()
+    original_job_title = data.get("original_job_title")
+    new_profile_data = data.get("new_profile_data")
+
+    if not original_job_title or not new_profile_data:
+        return jsonify({"error": "Missing original_job_title or new_profile_data"}), 400
+
+    try:
+        # Ensure the 'approved' flag is set to False
+        new_profile_data['approved'] = False
+
+        result = collection.update_one(
+            {"job_title": original_job_title},
+            {"$set": new_profile_data}
+        )
+
+        if result.matched_count == 0:
+            return jsonify({"error": "Profile not found"}), 404
+
+        return jsonify({"message": "Profile modified successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 # ---------------- Run App ----------------
 if __name__ == "__main__":
-    app.run(port=5001, debug=True)
+    app.run(port=8080, debug=True)
