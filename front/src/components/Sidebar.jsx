@@ -13,12 +13,7 @@ const Sidebar = () => {
         </li>
         <li className="hover:text-blue-600 cursor-pointer flex items-center">
           <Link to="/profiles" className="flex items-center">
-            📂 <span className="ml-2">View Job Profiles</span>
-          </Link>
-        </li>
-        <li className="hover:text-blue-600 cursor-pointer flex items-center">
-          <Link to="/jobs" className="flex items-center">
-            ✅ <span className="ml-2">Approved Jobs</span>
+            📂 <span className="ml-2">View Profiles</span>
           </Link>
         </li>
         <li className="hover:text-blue-600 cursor-pointer flex items-center">
