@@ -5,7 +5,7 @@ const Profiles = () => {
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
-  const [editingProfile, setEditingProfile] = useState(null); // Tracks the job_title of the profile being edited
+  const [editingProfile, setEditingProfile] = useState(null); // Tracks the _id of the profile being edited
   const [modifiedData, setModifiedData] = useState({});
 
   // Fetch profiles from backend
@@ -26,36 +26,36 @@ const Profiles = () => {
   }, []);
 
   // Approve profile
-  const handleApprove = async (job_title) => {
+  const handleApprove = async (profile_id) => {
     try {
-      await axios.post(`http://localhost:8080/approve`, { job_title });
+      await axios.post(`http://localhost:8080/approve`, { profile_id });
       setProfiles(
         profiles.map((p) =>
-          p.job_title === job_title ? { ...p, approved: true } : p
+          p._id === profile_id ? { ...p, approved: true } : p
         )
       );
-      setMessage(`✅ Profile "${job_title}" approved`);
+      setMessage(`✅ Profile approved`);
     } catch (err) {
       console.error(err);
-      setMessage(`❌ Failed to approve profile "${job_title}"`);
+      setMessage(`❌ Failed to approve profile`);
     }
   };
 
   // Disapprove profile (delete)
-  const handleDisapprove = async (job_title) => {
+  const handleDisapprove = async (profile_id) => {
     try {
-      await axios.post(`http://localhost:8080/delete`, { job_title });
-      setProfiles(profiles.filter((p) => p.job_title !== job_title));
-      setMessage(`❌ Profile "${job_title}" deleted`);
+      await axios.post(`http://localhost:8080/delete`, { profile_id });
+      setProfiles(profiles.filter((p) => p._id !== profile_id));
+      setMessage(`❌ Profile deleted`);
     } catch (err) {
       console.error(err);
-      setMessage(`❌ Failed to delete profile "${job_title}"`);
+      setMessage(`❌ Failed to delete profile`);
     }
   };
 
   // Enter edit mode
   const handleModify = (profile) => {
-    setEditingProfile(profile.job_title);
+    setEditingProfile(profile._id);
     setModifiedData({ ...profile });
   };
 
@@ -66,19 +66,19 @@ const Profiles = () => {
   };
 
   // Save modified profile
-  const handleSave = async (original_job_title) => {
+  const handleSave = async (profile_id) => {
     try {
       await axios.post(`http://localhost:8080/modify`, {
-        original_job_title,
+        profile_id,
         new_profile_data: modifiedData,
       });
       // a new profile is created, so we fetch all profiles again
       fetchProfiles();
-      setMessage(`✅ Profile "${original_job_title}" modified and saved`);
+      setMessage(`✅ Profile modified and saved`);
       setEditingProfile(null);
     } catch (err) {
       console.error(err);
-      setMessage(`❌ Failed to save profile "${original_job_title}"`);
+      setMessage(`❌ Failed to save profile`);
     }
   };
 
@@ -112,10 +112,10 @@ const Profiles = () => {
         <div className="overflow-x-auto">
           {profiles.map((profile) => (
             <div
-              key={profile.job_title}
+              key={profile._id}
               className="mb-8 p-6 border rounded-lg shadow-sm"
             >
-              {editingProfile === profile.job_title ? (
+              {editingProfile === profile._id ? (
                 // Edit mode
                 <div>
                   <input
@@ -173,7 +173,7 @@ const Profiles = () => {
                   </div>
                   <div className="flex space-x-4 mt-4">
                     <button
-                      onClick={() => handleSave(profile.job_title)}
+                      onClick={() => handleSave(profile._id)}
                       className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
                     >
                       Save
@@ -229,14 +229,14 @@ const Profiles = () => {
 
                   <div className="flex space-x-4 mt-4">
                     <button
-                      onClick={() => handleApprove(profile.job_title)}
+                      onClick={() => handleApprove(profile._id)}
                       className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
                       disabled={profile.approved}
                     >
                       Approve
                     </button>
                     <button
-                      onClick={() => handleDisapprove(profile.job_title)}
+                      onClick={() => handleDisapprove(profile._id)}
                       className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
                     >
                       Disapprove
