@@ -5,6 +5,7 @@ import Home from './components/Home';
 import FileUpload from './components/FileUpload';
 import Profiles from './components/Profiles';
 import Settings from './components/Settings';
+import Jobs from './components/Jobs';
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/upload" element={<FileUpload />} />
           <Route path="/profiles" element={<Profiles />} />
+          <Route path="/jobs" element={<Jobs />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </Dashboard>
