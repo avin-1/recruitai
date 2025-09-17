@@ -20,9 +20,19 @@ const Profiles = () => {
   };
 
   // Approve profile
-  const handleApprove = (job_title) => {
-    setMessage(`✅ Profile "${job_title}" approved`);
-    // Do nothing else
+  const handleApprove = async (job_title) => {
+    try {
+      await axios.post(`http://localhost:5001/approve`, { job_title });
+      setProfiles(
+        profiles.map((p) =>
+          p.job_title === job_title ? { ...p, approved: true } : p
+        )
+      );
+      setMessage(`✅ Profile "${job_title}" approved`);
+    } catch (err) {
+      console.error(err);
+      setMessage(`❌ Failed to approve profile "${job_title}"`);
+    }
   };
 
   // Disapprove profile (delete)
@@ -87,12 +97,21 @@ const Profiles = () => {
               </div>
 
               <div className="flex space-x-4 mt-4">
-                <button
-                  onClick={() => handleApprove(profile.job_title)}
-                  className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                >
-                  Approve
-                </button>
+                {profile.approved ? (
+                  <button
+                    disabled
+                    className="bg-gray-400 text-white px-4 py-2 rounded cursor-not-allowed"
+                  >
+                    Approved
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleApprove(profile.job_title)}
+                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                  >
+                    Approve
+                  </button>
+                )}
                 <button
                   onClick={() => handleDisapprove(profile.job_title)}
                   className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"

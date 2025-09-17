@@ -12,7 +12,7 @@ if not MONGO_URI:
     raise ValueError("MONGODB_URI not found in .env")
 
 # MongoDB setup
-DB_NAME = "mydatabase"           # replace with your database name
+DB_NAME = "profiles"           # replace with your database name
 COLLECTION_NAME = "json_files"   # replace with your collection name
 client = MongoClient(MONGO_URI)
 db = client[DB_NAME]
@@ -68,6 +68,24 @@ def delete_profile():
         if result.deleted_count == 0:
             return jsonify({"error": "Profile not found"}), 404
         return jsonify({"message": f'Profile "{job_title}" deleted successfully'}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ---------------- Approve Job Profile ----------------
+@app.route("/approve", methods=["POST"])
+def approve_profile():
+    data = request.get_json()
+    job_title = data.get("job_title")
+    if not job_title:
+        return jsonify({"error": "No job_title provided"}), 400
+    try:
+        result = collection.update_one(
+            {"job_title": job_title},
+            {"$set": {"approved": True}}
+        )
+        if result.matched_count == 0:
+            return jsonify({"error": "Profile not found"}), 404
+        return jsonify({"message": f'Profile "{job_title}" approved successfully'}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
