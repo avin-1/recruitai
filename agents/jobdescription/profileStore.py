@@ -34,8 +34,10 @@ class JsonHandler(FileSystemEventHandler):
             try:
                 with open(event.src_path, "r") as f:
                     data = json.load(f)
+                # Add the 'approved' field, defaulting to False
+                data['approved'] = False
                 collection.insert_one(data)
-                print(f"Inserted {os.path.basename(event.src_path)} into MongoDB")
+                print(f"Inserted {os.path.basename(event.src_path)} into MongoDB with approved=False")
             except Exception as e:
                 print(f"Failed to insert {os.path.basename(event.src_path)}: {e}")
 

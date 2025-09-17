@@ -71,6 +71,24 @@ def delete_profile():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# ---------------- Approve Job Profile ----------------
+@app.route("/approve", methods=["POST"])
+def approve_profile():
+    data = request.get_json()
+    job_title = data.get("job_title")
+    if not job_title:
+        return jsonify({"error": "No job_title provided"}), 400
+    try:
+        result = collection.update_one(
+            {"job_title": job_title},
+            {"$set": {"approved": True}}
+        )
+        if result.matched_count == 0:
+            return jsonify({"error": "Profile not found"}), 404
+        return jsonify({"message": f'Profile "{job_title}" approved successfully'}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 # ---------------- Run App ----------------
 if __name__ == "__main__":
     app.run(port=5001, debug=True)
