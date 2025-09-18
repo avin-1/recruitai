@@ -7,6 +7,9 @@ from pymongo import MongoClient
 from dotenv import load_dotenv
 from langgraph.graph import StateGraph, START, END
 
+# Load .env file
+load_dotenv()
+
 # ---------- Agent State ----------
 @dataclass
 class AgentState:
@@ -98,7 +101,7 @@ def store_profile(state: AgentState) -> AgentState:
 # ---------- Build Graph ----------
 workflow = StateGraph(AgentState)
 workflow.add_node("wait_for_input", wait_for_input)
-workflow.add_node("parse__jd", parse_jd)
+workflow.add_node("parse_jd", parse_jd)
 workflow.add_node("store_profile", store_profile)
 
 # Define the graph flow
