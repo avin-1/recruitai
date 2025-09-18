@@ -11,7 +11,7 @@ load_dotenv()
 
 INPUT_FOLDER = "input"
 OUTPUT_FOLDER = "output"
-PROMPT_FILE = os.path.join("promptsDB", "prompt.txt")
+PROMPT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "promptsDB", "prompt.txt")
 LLM_MODEL = "openai/gpt-oss-20b:fireworks-ai"
 
 HF_TOKEN = os.environ.get("HF_TOKEN")
@@ -27,6 +27,14 @@ client = OpenAI(
 
 os.makedirs(INPUT_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+
+
+# --- Helper Functions ---
+def sanitize_filename(filename):
+    filename = filename.replace(" ", "_")
+    filename = re.sub(r'[^\w\-]', '', filename)
+    return filename[:100]
+
 
 def extract_text_from_pdf(pdf_path):
     try:
@@ -72,44 +80,55 @@ def parse_job_description_with_llm(text, prompt, retries=5):
     return None
 
 def process_job_description(pdf_path):
-    print(f"Processing {pdf_path} ...")
-    text = extract_text_from_pdf(pdf_path)
-    if not text:
-        print(f"Failed to extract text from {pdf_path}", file=sys.stderr)
-        return None
-    prompt = load_prompt()
-    if not prompt:
-        print("Prompt not found, exiting.", file=sys.stderr)
-        return None
-    structured = parse_job_description_with_llm(text, prompt)
-    if structured:
+    print(f"Extracting text from {pdf_path}...")
+    job_text = extract_text_from_pdf(pdf_path)
+    if not job_text:
+        print(f"Could not extract text from {pdf_path}. Skipping.")
+        return
+
+    print("Loading parsing prompt...")
+    parsing_prompt = load_prompt()
+    if not parsing_prompt:
+        print("No parsing prompt available. Skipping.")
+        return
+
+    structured_profile = parse_job_description_with_llm(job_text, parsing_prompt)
+
+    if structured_profile:
+
         base_name = os.path.splitext(os.path.basename(pdf_path))[0]
         out_file = os.path.join(OUTPUT_FOLDER, f"{base_name}.json")
         try:
-            with open(out_file, "w", encoding="utf-8") as fp:
-                json.dump(structured, fp, indent=4, ensure_ascii=False)
-            print(f"Saved {out_file}")
-            return out_file
+
+            with open(output_filename, "w", encoding="utf-8") as f:
+                json.dump(structured_profile, f, indent=4, ensure_ascii=False)
+            print(f"✅ Successfully created structured job profile: {output_filename}")
+            return output_filename
+
         except Exception as e:
             print(f"Error saving JSON file {out_file}: {e}", file=sys.stderr)
             return None
     else:
-        print(f"Failed to parse {pdf_path}", file=sys.stderr)
-        return None
+
+        print(f"❌ Failed to get structured profile from LLM for {pdf_path}.")
+    return None
+
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python jdParsing.py <path_to_pdf>", file=sys.stderr)
+
+    if len(sys.argv) < 2:
+        print("Usage: python jdParsing.py <path_to_pdf>")
         sys.exit(1)
-    
+
     pdf_path = sys.argv[1]
     if not os.path.exists(pdf_path):
-        print(f"Error: File not found at {pdf_path}", file=sys.stderr)
+        print(f"Error: File not found at {pdf_path}")
         sys.exit(1)
-    
+
     output_file = process_job_description(pdf_path)
     if output_file:
-        print(output_file)  # Output the JSON file path to stdout
+        print(output_file)
         sys.exit(0)
     else:
         sys.exit(1)
+
