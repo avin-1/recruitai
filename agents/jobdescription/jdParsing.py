@@ -2,18 +2,17 @@ import os
 import json
 import time
 import fitz  # PyMuPDF
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
 from openai import OpenAI, RateLimitError
 import re
 from dotenv import load_dotenv
+import sys
 
 load_dotenv()
 
 # --- Configuration ---
 INPUT_FOLDER = "input"
 OUTPUT_FOLDER = "output"
-PROMPT_FILE = os.path.join("promptsDB", "prompt.txt")
+PROMPT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "promptsDB", "prompt.txt")
 LLM_MODEL = "openai/gpt-oss-20b:fireworks-ai"
 
 HF_TOKEN = os.environ.get("HF_TOKEN")
@@ -31,29 +30,12 @@ client = OpenAI(
 # --- Setup Directories ---
 os.makedirs(INPUT_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-print(f"Watching for new PDF job descriptions in: '{INPUT_FOLDER}/'")
-print(f"Output JSON profiles will be saved to: '{OUTPUT_FOLDER}/'")
 
 # --- Helper Functions ---
 def sanitize_filename(filename):
     filename = filename.replace(" ", "_")
     filename = re.sub(r'[^\w\-]', '', filename)
     return filename[:100]
-
-def wait_for_file_completion(filepath, timeout=10, interval=0.5):
-    start_time = time.time()
-    while time.time() - start_time < timeout:
-        try:
-            with open(filepath, 'rb') as f:
-                f.seek(0, os.SEEK_END)
-            return True
-        except IOError:
-            time.sleep(interval)
-        except Exception as e:
-            print(f"Unexpected error while waiting for file {filepath}: {e}")
-            return False
-    print(f"Timeout reached while waiting for file {filepath} to be written.")
-    return False
 
 def extract_text_from_pdf(pdf_path):
     text = ""
@@ -120,24 +102,7 @@ JSON Output:"""
     print(f"Failed to get LLM response after {max_retries} retries due to rate limits.")
     return None
 
-# --- Watchdog Event Handler ---
-class JobDescriptionHandler(FileSystemEventHandler):
-    def on_created(self, event):
-        if event.is_directory:
-            return
-        if event.src_path.lower().endswith(".pdf"):
-            print(f"New PDF detected: {event.src_path}")
-            time.sleep(0.1)
-            process_job_description(event.src_path)
-        else:
-            print(f"Ignored non-PDF file: {event.src_path}")
-
 def process_job_description(pdf_path):
-    print(f"Waiting for file {pdf_path} to be fully written...")
-    if not wait_for_file_completion(pdf_path):
-        print(f"Skipping {pdf_path} as it could not be accessed after waiting.")
-        return
-
     print(f"Extracting text from {pdf_path}...")
     job_text = extract_text_from_pdf(pdf_path)
     if not job_text:
@@ -150,7 +115,6 @@ def process_job_description(pdf_path):
         print("No parsing prompt available. Skipping.")
         return
 
-    print("Sending text to LLM for parsing...")
     structured_profile = parse_job_description_with_llm(job_text, parsing_prompt)
 
     if structured_profile:
@@ -161,22 +125,27 @@ def process_job_description(pdf_path):
             with open(output_filename, "w", encoding="utf-8") as f:
                 json.dump(structured_profile, f, indent=4, ensure_ascii=False)
             print(f"✅ Successfully created structured job profile: {output_filename}")
+            return output_filename
         except Exception as e:
             print(f"Error saving JSON file {output_filename}: {e}")
     else:
         print(f"❌ Failed to get structured profile from LLM for {pdf_path}.")
+    return None
 
 # --- Main Execution ---
 if __name__ == "__main__":
-    event_handler = JobDescriptionHandler()
-    observer = Observer()
-    observer.schedule(event_handler, INPUT_FOLDER, recursive=False)
-    observer.start()
+    if len(sys.argv) < 2:
+        print("Usage: python jdParsing.py <path_to_pdf>")
+        sys.exit(1)
 
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        observer.stop()
-        print("Job parsing agent stopped.")
-    observer.join()
+    pdf_path = sys.argv[1]
+    if not os.path.exists(pdf_path):
+        print(f"Error: File not found at {pdf_path}")
+        sys.exit(1)
+
+    output_file = process_job_description(pdf_path)
+    if output_file:
+        print(output_file)
+        sys.exit(0)
+    else:
+        sys.exit(1)
