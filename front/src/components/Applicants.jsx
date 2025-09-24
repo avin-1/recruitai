@@ -115,13 +115,21 @@ const Applicants = () => {
           {loading && <p className="text-gray-600">Loading applications…</p>}
           {!loading && (
             <div className="divide-y">
-              {applications.map(app => (
+              {applications.map((app, idx) => (
                 <div key={app._id} className="py-3 flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-gray-900">{app.name}</p>
-                    <p className="text-gray-600 text-sm">{app.email}</p>
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 text-blue-700 font-semibold">{idx + 1}</span>
+                    <div>
+                      <p className="font-medium text-gray-900">{app.name}</p>
+                      <p className="text-gray-600 text-sm">{app.email}</p>
+                    </div>
                   </div>
-                  <div className="text-gray-500 text-sm">{app.resume_filename}</div>
+                  <div className="flex items-center gap-4 text-sm">
+                    {typeof app.score === 'number' && (
+                      <span className="px-2 py-1 rounded-md bg-green-50 text-green-700 font-semibold">Score: {app.score.toFixed(1)}</span>
+                    )}
+                    <span className="text-gray-500">{app.resume_filename}</span>
+                  </div>
                 </div>
               ))}
               {applications.length === 0 && <p className="text-gray-600">No applications yet.</p>}

@@ -5,6 +5,19 @@ from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 import os
 from bson.objectid import ObjectId
+import math
+try:
+    # Optional advanced scoring imports
+    from agents.resumeandmatching.utils.resume_parser import parse_resume as _parse_resume
+    from agents.resumeandmatching.utils.matcher import semantic_match as _semantic_match
+    from agents.resumeandmatching.utils.llm_scorer import compute_score as _llm_score
+    _ADVANCED_SCORING = True
+except Exception:
+    _ADVANCED_SCORING = False
+    _parse_resume = None
+    _semantic_match = None
+    _llm_score = None
+import fitz  # PyMuPDF (fallback text extraction)
 
 # Load .env
 load_dotenv()
@@ -20,6 +33,11 @@ client = MongoClient(MONGO_URI)
 db = client[DB_NAME]
 collection = db[COLLECTION_NAME]
 applications_col = db.get_collection("applications")
+# Ensure unique (job_id, email) to prevent duplicate applications per job
+try:
+    applications_col.create_index([("job_id", 1), ("email", 1)], unique=True)
+except Exception:
+    pass
 
 # Flask app
 app = Flask(__name__)
@@ -126,8 +144,11 @@ def list_applications():
     if not job_id:
         return jsonify({"error": "job_id is required"}), 400
     try:
+        # Return all applications for this job; sort by score desc (missing/null last), then created_at desc
         query = {"job_id": ObjectId(job_id)}
-        cursor = applications_col.find(query).sort("created_at", -1)
+        # Prefer score desc if available, then created_at desc
+        sort_spec = [("score", -1), ("created_at", -1)]
+        cursor = applications_col.find(query).sort(sort_spec)
         if limit and limit > 0:
             cursor = cursor.limit(limit)
         apps = []
@@ -140,6 +161,7 @@ def list_applications():
                 "name": a.get("name"),
                 "email": a.get("email"),
                 "resume_filename": a.get("resume_filename"),
+                "score": a.get("score"),
                 "created_at": a.get("created_at").isoformat() if a.get("created_at") else None,
             })
         return jsonify({"applications": apps}), 200
@@ -171,21 +193,63 @@ def apply_job():
         base_name = secure_filename(resume.filename or "resume")
         timestamp = str(int(__import__("time").time()))
         stored_name = f"{job_id}_{timestamp}_{base_name}"
-        stored_path = os.path.join(RESUMES_FOLDER, stored_name)
+        stored_path = os.path.abspath(os.path.join(RESUMES_FOLDER, stored_name))
         resume.save(stored_path)
 
-        # Create application document (no file bytes)
-        app_doc = {
-            "job_id": ObjectId(job_id),
-            "name": name,
-            "email": email,
-            "resume_filename": resume.filename,
-            "resume_path": stored_path,
-            "created_at": __import__("datetime").datetime.utcnow(),
-        }
-        result = applications_col.insert_one(app_doc)
+        # Compute score for ranking (best-effort)
+        try:
+            # Extract JD text
+            jd_text = job.get("responsibilities") or job.get("summary") or job.get("description") or ""
+            # Extract resume text
+            if _parse_resume is not None:
+                resume_text = _parse_resume(stored_path) or ""
+            else:
+                try:
+                    d = fitz.open(stored_path)
+                    resume_text = "".join(p.get_text() for p in d)
+                    d.close()
+                except Exception:
+                    resume_text = ""
 
-        return jsonify({"message": "Application received", "application_id": str(result.inserted_id)}), 201
+            score_val = 0.0
+            if resume_text and jd_text:
+                if _ADVANCED_SCORING and _semantic_match is not None and _llm_score is not None:
+                    sem = _semantic_match(resume_text, jd_text, "all-MiniLM-L6-v2")  # 0..1
+                    llm = _llm_score(resume_text, jd_text, "openai/gpt-oss-20b:fireworks-ai")  # 0..100 (fallback inside if no token)
+                    score_val = 0.5 * (sem * 100.0) + 0.5 * llm
+                else:
+                    # Lightweight heuristic fallback
+                    r_set = set(resume_text.lower().split())
+                    j_set = set(jd_text.lower().split())
+                    overlap = len(r_set & j_set)
+                    base = len(j_set) or 1
+                    score_val = 100.0 * overlap / base
+            score_val = float(max(0.0, min(100.0, score_val)))
+        except Exception:
+            score_val = 0.0
+
+        # Upsert application (unique per job_id + email); update score and latest resume metadata
+        filter_doc = {"job_id": ObjectId(job_id), "email": email}
+        update_doc = {
+            "$set": {
+                "name": name,
+                "resume_filename": resume.filename,
+                "resume_path": stored_path,
+                "score": float(score_val),
+            },
+            "$setOnInsert": {
+                "created_at": __import__("datetime").datetime.utcnow(),
+            },
+        }
+        result = applications_col.update_one(filter_doc, update_doc, upsert=True)
+
+        # Return id when inserted; for updates, fetch existing id
+        if result.upserted_id is not None:
+            app_id = str(result.upserted_id)
+        else:
+            existing = applications_col.find_one(filter_doc, {"_id": 1})
+            app_id = str(existing["_id"]) if existing else None
+        return jsonify({"message": "Application received", "application_id": app_id}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     

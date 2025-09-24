@@ -94,7 +94,7 @@ def parse_jd_node(state: AgentState) -> AgentState:
         print(f"Parse error: {exc}")
         state.profile = {}
     return state
-
+    
 
 def insert_mongo_node(state: AgentState) -> AgentState:
     """InsertMongoNode – inserts profile into MongoDB."""
