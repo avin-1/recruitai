@@ -17,6 +17,16 @@ const Sidebar = () => {
           </Link>
         </li>
         <li className="hover:text-blue-600 cursor-pointer flex items-center">
+          <Link to="/jobs" className="flex items-center">
+            💼 <span className="ml-2">Job Portal</span>
+          </Link>
+        </li>
+        <li className="hover:text-blue-600 cursor-pointer flex items-center">
+          <Link to="/applicants" className="flex items-center">
+            👥 <span className="ml-2">Applicants</span>
+          </Link>
+        </li>
+        <li className="hover:text-blue-600 cursor-pointer flex items-center">
           <Link to="/settings" className="flex items-center">
             ⚙️ <span className="ml-2">Settings</span>
           </Link>
