@@ -1,27 +1,25 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
+<html lang="en" class="dark">
+<head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>RecruitAI</title>
-
-    <!-- Favicon  -->
-    <link rel="icon" type="image/png" href="/favicon.png" />
-
-    <!-- Tailwind  -->
     <script src="https://cdn.tailwindcss.com"></script>
-
-    <!-- Google Fonts: Inter -->
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap"
-      rel="stylesheet"
-    />
-  </head>
-  <body class="antialiased bg-sky-50">
-    <!-- React mounts here -->
+<script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.20.0",
+    "react/": "https://aistudiocdn.com/react@^19.1.1/",
+    "react": "https://aistudiocdn.com/react@^19.1.1"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-slate-900">
     <div id="root"></div>
-
-    <!--  bundled JS file  -->
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+    <script type="module" src="/index.tsx"></script>
+</body>
 </html>
