@@ -12,6 +12,8 @@ const Applicants = () => {
   const [error, setError] = useState('');
   const [jobDetail, setJobDetail] = useState(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [selectingCandidates, setSelectingCandidates] = useState(false);
+  const [selectionResult, setSelectionResult] = useState(null);
 
   const loadCounts = async () => {
     setError('');
@@ -71,6 +73,38 @@ const Applicants = () => {
     window.location.href = '/profiles';
   };
 
+  const onSelectCandidates = async () => {
+    if (!selectedJob || applications.length === 0) return;
+    
+    setSelectingCandidates(true);
+    setError('');
+    setSelectionResult(null);
+    
+    try {
+      // Send only the currently displayed/filtered candidates
+      const candidatesToSelect = applications.map(app => ({
+        name: app.name,
+        email: app.email,
+        score: app.score
+      }));
+      
+      const res = await axios.post(`${API_BASE}/select_candidates`, {
+        job_id: selectedJob._id,
+        candidates: candidatesToSelect
+      });
+      
+      setSelectionResult(res.data);
+      
+      // Show success message
+      alert(`Selection completed!\n\nTotal selected: ${res.data.total_selected}\nSuccessful emails: ${res.data.successful_emails}\nFailed emails: ${res.data.failed_emails}`);
+      
+    } catch (err) {
+      setError(err.response?.data?.error || err.message);
+    } finally {
+      setSelectingCandidates(false);
+    }
+  };
+
   return (
     <div className="w-full p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -112,6 +146,36 @@ const Applicants = () => {
               <button onClick={onModifyJD} className="px-4 py-2 border rounded-lg">Modify JD</button>
             </div>
           </div>
+          
+          {/* Select Candidates Button */}
+          <div className="mt-4 flex flex-col items-center gap-2">
+            <p className="text-sm text-gray-600 text-center">
+              {applications.length > 0 
+                ? `Emails will be sent to the ${applications.length} candidate${applications.length === 1 ? '' : 's'} shown above`
+                : 'No candidates to select'
+              }
+            </p>
+            <button 
+              onClick={onSelectCandidates}
+              disabled={selectingCandidates || applications.length === 0}
+              className={`px-6 py-3 rounded-lg font-semibold text-white transition ${
+                selectingCandidates || applications.length === 0
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-green-600 hover:bg-green-700'
+              }`}
+            >
+              {selectingCandidates ? 'Selecting Candidates...' : `Select ${applications.length} Candidates`}
+            </button>
+          </div>
+          
+          {selectionResult && (
+            <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <h4 className="font-semibold text-green-800 mb-2">Selection Results</h4>
+              <p className="text-green-700">Total selected: {selectionResult.total_selected}</p>
+              <p className="text-green-700">Successful emails: {selectionResult.successful_emails}</p>
+              <p className="text-green-700">Failed emails: {selectionResult.failed_emails}</p>
+            </div>
+          )}
           {loading && <p className="text-gray-600">Loading applications…</p>}
           {!loading && (
             <div className="divide-y">

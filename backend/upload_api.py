@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 import os
 from bson.objectid import ObjectId
 import math
+from email_service import EmailService
 try:
     # Optional advanced scoring imports
     from agents.resumeandmatching.utils.resume_parser import parse_resume as _parse_resume
@@ -42,6 +43,9 @@ except Exception:
 # Flask app
 app = Flask(__name__)
 CORS(app)  # enable CORS for all routes
+
+# Initialize email service
+email_service = EmailService()
 
 # Set upload folder relative to backend directory
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # backend directory
@@ -310,6 +314,61 @@ def modify_profile():
             return jsonify({"error": "Profile not found"}), 404
 
         return jsonify({"message": "Profile modified successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ---------------- Select Candidates ----------------
+@app.route("/select_candidates", methods=["POST"])
+def select_candidates():
+    """Select specific candidates for a job and send them emails"""
+    data = request.get_json()
+    job_id = data.get("job_id")
+    candidates = data.get("candidates", [])
+    
+    if not job_id:
+        return jsonify({"error": "job_id is required"}), 400
+    
+    if not candidates:
+        return jsonify({"error": "No candidates provided"}), 400
+    
+    try:
+        # Get job details
+        job = collection.find_one({"_id": ObjectId(job_id)})
+        if not job:
+            return jsonify({"error": "Job not found"}), 404
+        
+        # Select candidates and send emails
+        job_title = job.get("job_title") or job.get("title") or "Unknown Position"
+        company = job.get("company") or "Our Company"
+        
+        results = email_service.select_candidates(
+            str(job_id), 
+            job_title, 
+            company, 
+            candidates
+        )
+        
+        return jsonify({
+            "message": f"Selection process completed",
+            "total_selected": results["total_selected"],
+            "successful_emails": len(results["success"]),
+            "failed_emails": len(results["failed"]),
+            "success": results["success"],
+            "failed": results["failed"]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ---------------- Get Selected Candidates ----------------
+@app.route("/selected_candidates", methods=["GET"])
+def get_selected_candidates():
+    """Get list of selected candidates"""
+    job_id = request.args.get("job_id")
+    
+    try:
+        selected = email_service.get_selected_candidates(job_id)
+        return jsonify({"selected_candidates": selected}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
