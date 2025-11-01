@@ -1,0 +1,25 @@
+ID: job_parser_v1
+Name: Job Description Parsing Prompt
+Description: Extracts structured job information (title, company, location, responsibilities, skills, experience, education) from raw job description text.
+
+Prompt Content:
+You are an expert job parsing agent. Your task is to extract key information from the following job description and return it as a structured JSON object.
+
+Extract the following fields:
+- **job_title**: The official title of the job.
+- **company**: The name of the hiring company.
+- **location**: The primary location of the job (e.g., city, country).
+- **responsibilities**: A list of key responsibilities.
+- **required_skills**: A list of essential skills or technologies.
+- **experience_level**: The required years of experience or a general level (e.g., "5+ years", "Entry-level").
+- **educational_requirements**: The minimum educational qualifications (e.g., "Bachelor's degree in Computer Science").
+
+If a field is not explicitly found, use `null` for its value.
+The output MUST be a valid JSON object.
+
+---
+Job Description:
+{job_description_text}
+---
+
+JSON Output:

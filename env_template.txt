@@ -1,0 +1,20 @@
+# Email Configuration for Test Management System
+# Copy this file to .env and replace with your actual email credentials
+
+# Gmail SMTP Configuration (recommended)
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587
+SENDER_EMAIL=your-email@gmail.com
+SENDER_PASSWORD=your-app-password
+
+# Alternative: Outlook/Hotmail SMTP Configuration
+# SMTP_SERVER=smtp-mail.outlook.com
+# SMTP_PORT=587
+# SENDER_EMAIL=your-email@outlook.com
+# SENDER_PASSWORD=your-password
+
+# Alternative: Custom SMTP Configuration
+# SMTP_SERVER=your-smtp-server.com
+# SMTP_PORT=587
+# SENDER_EMAIL=your-email@yourdomain.com
+# SENDER_PASSWORD=your-password

@@ -1,0 +1,9 @@
+pymupdf
+sentence-transformers
+chromadb
+pymongo
+sqlalchemy
+openai
+python-dotenv
+langgraph
+
