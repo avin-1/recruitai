@@ -20,8 +20,8 @@ except Exception:
     _llm_score = None
 import fitz  # PyMuPDF (fallback text extraction)
 
-# Load .env
-load_dotenv()
+# Load .env explicitly
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=True)
 MONGO_URI = os.getenv("MONGODB_URI")
 
 if not MONGO_URI:
@@ -272,17 +272,98 @@ def delete_profile():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# ---------------- Serve Static Files ----------------
+@app.route('/static/<path:path>')
+def send_static(path):
+    return __import__("flask").send_from_directory('static', path)
+
 # ---------------- Approve Profile ----------------
 @app.route("/approve", methods=["POST"])
 def approve_profile():
-    data = request.get_json()
-    profile_id = data.get("profile_id")
+    # Check if request is multipart (has file or form data)
+    if request.content_type and "multipart/form-data" in request.content_type:
+        profile_id = request.form.get("profile_id")
+        post_to_json = request.form.get("post_to", "[]")
+        import json
+        try:
+            post_to = json.loads(post_to_json)
+        except:
+            post_to = []
+    else:
+        # Fallback for JSON requests (legacy/simple approval)
+        data = request.get_json() or {}
+        profile_id = data.get("profile_id")
+        post_to = []
+
     if not profile_id:
         return jsonify({"error": "No profile_id provided"}), 400
+
     try:
+        # 1. Approve in DB
         result = collection.update_one({"_id": ObjectId(profile_id)}, {"$set": {"approved": True}})
         if result.matched_count == 0:
             return jsonify({"error": "Profile not found"}), 404
+            
+        # 2. Handle Social Media Posting
+        if post_to:
+            # Get Job Details
+            job = collection.find_one({"_id": ObjectId(profile_id)})
+            
+            # Handle Image
+            image_url = None
+            if "image" in request.files and request.files["image"].filename:
+                # Save uploaded image
+                img_file = request.files["image"]
+                filename = secure_filename(f"{profile_id}_{img_file.filename}")
+                save_path = os.path.join(BASE_DIR, "static", "social_images", filename)
+                os.makedirs(os.path.dirname(save_path), exist_ok=True)
+                img_file.save(save_path)
+                
+                # Construct URL
+                # NOTE: Instagram API requires a PUBLICLY ACCESSIBLE URL.
+                host_url = request.host_url
+                if "localhost" in host_url or "127.0.0.1" in host_url:
+                    # Use a stable public placeholder for testing
+                    image_url = "https://images.unsplash.com/photo-1575936123452-b67c3203c357?ixlib=rb-4.0.3&w=1000&q=80"
+                    import logging
+                    logging.warning(f"Localhost detected ({host_url}). Using public placeholder image for Instagram: {image_url}")
+                else:
+                    image_url = f"{host_url}static/social_images/{filename}".replace("http://", "https://")
+            else:
+                # Use default JDImage.jpg
+                # Check if it exists in root and copy to static if needed
+                root_img_path = os.path.join(BASE_DIR, "..", "JDImage.jpg")
+                if os.path.exists(root_img_path):
+                    filename = "JDImage.jpg"
+                    static_img_path = os.path.join(BASE_DIR, "static", "social_images", filename)
+                    os.makedirs(os.path.dirname(static_img_path), exist_ok=True)
+                    if not os.path.exists(static_img_path):
+                        import shutil
+                        shutil.copy(root_img_path, static_img_path)
+                    
+                    # Construct URL
+                    host_url = request.host_url
+                    if "localhost" in host_url or "127.0.0.1" in host_url:
+                        # Use a stable public placeholder for testing
+                        image_url = "https://images.unsplash.com/photo-1575936123452-b67c3203c357?ixlib=rb-4.0.3&w=1000&q=80"
+                        import logging
+                        logging.warning(f"Localhost detected ({host_url}). Using public placeholder image for Instagram: {image_url}")
+                    else:
+                        image_url = f"{host_url}static/social_images/{filename}".replace("http://", "https://")
+
+            if image_url:
+                from social_media_service import SocialMediaService
+                sms = SocialMediaService()
+                post_results = sms.post_job(job, image_url, post_to)
+                return jsonify({
+                    "message": "Profile approved successfully", 
+                    "social_media_results": post_results
+                }), 200
+            else:
+                 return jsonify({
+                    "message": "Profile approved, but could not resolve image for social media posting.",
+                }), 200
+
         return jsonify({"message": f'Profile approved successfully'}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500

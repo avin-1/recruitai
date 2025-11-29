@@ -33,20 +33,67 @@ const Profiles = () => {
   }, []);
 
   // Approve profile
-  const handleApprove = async (profile_id) => {
+  const [showApproveDialog, setShowApproveDialog] = useState(false);
+  const [selectedProfileId, setSelectedProfileId] = useState(null);
+  const [postTo, setPostTo] = useState({ instagram: false, facebook: false });
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [approving, setApproving] = useState(false);
+
+  const initiateApprove = (profile_id) => {
+    setSelectedProfileId(profile_id);
+    setPostTo({ instagram: false, facebook: false });
+    setSelectedImage(null);
+    setShowApproveDialog(true);
+  };
+
+  const handleApproveConfirm = async () => {
+    if (!selectedProfileId) return;
+    setApproving(true);
+
     try {
-      await axios.post(`${API_BASE}/approve`, { profile_id });
+      const platforms = [];
+      if (postTo.instagram) platforms.push("instagram");
+      if (postTo.facebook) platforms.push("facebook");
+
+      const formData = new FormData();
+      formData.append("profile_id", selectedProfileId);
+      formData.append("post_to", JSON.stringify(platforms));
+      if (selectedImage) {
+        formData.append("image", selectedImage);
+      }
+
+      const res = await axios.post(`${API_BASE}/approve`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
       setProfiles(
         profiles.map((p) =>
-          p._id === profile_id ? { ...p, approved: true } : p
+          p._id === selectedProfileId ? { ...p, approved: true } : p
         )
       );
-      setMessage(`✅ Profile approved`);
-      setTimeout(() => setMessage(""), 3000);
+
+      let msg = "✅ Profile approved";
+      if (platforms.length > 0) {
+        if (res.data.social_media_results) {
+          const results = res.data.social_media_results;
+          const success = Object.keys(results).filter(k => results[k] === 'success');
+          const failed = Object.keys(results).filter(k => results[k] !== 'success');
+
+          if (success.length > 0) msg += ` & Posted to ${success.join(", ")}`;
+          if (failed.length > 0) msg += `. Failed to post to ${failed.join(", ")}`;
+        }
+      }
+
+      setMessage(msg);
+      setTimeout(() => setMessage(""), 5000);
     } catch (err) {
       console.error(err);
       setMessage(`❌ Failed to approve profile`);
       setTimeout(() => setMessage(""), 3000);
+    } finally {
+      setApproving(false);
+      setShowApproveDialog(false);
+      setSelectedProfileId(null);
     }
   };
 
@@ -136,11 +183,10 @@ const Profiles = () => {
 
         {/* Message */}
         {message && (
-          <div className={`mb-6 p-4 rounded-xl border backdrop-blur-md shadow-lg ${
-            message.startsWith("✅")
+          <div className={`mb-6 p-4 rounded-xl border backdrop-blur-md shadow-lg ${message.startsWith("✅")
               ? "bg-green-50/90 border-green-200/60 text-green-900"
               : "bg-red-50/90 border-red-200/60 text-red-900"
-          }`}>
+            }`}>
             {message}
           </div>
         )}
@@ -182,7 +228,7 @@ const Profiles = () => {
                     </div>
                   </div>
                 </CardHeader>
-                
+
                 <CardContent className="p-6">
                   {editingProfile === profile._id ? (
                     // Edit Mode
@@ -334,7 +380,7 @@ const Profiles = () => {
                         </h4>
                         <ul className="list-disc list-inside space-y-1 text-gray-700 bg-gray-50 p-4 rounded-lg">
                           {Array.isArray(profile.responsibilities) &&
-                          profile.responsibilities.length > 0 ? (
+                            profile.responsibilities.length > 0 ? (
                             profile.responsibilities.map((item, idx) => (
                               <li key={idx}>{item}</li>
                             ))
@@ -350,7 +396,7 @@ const Profiles = () => {
                         </h4>
                         <div className="flex flex-wrap gap-2 bg-gray-50 p-4 rounded-lg">
                           {Array.isArray(profile.required_skills) &&
-                          profile.required_skills.length > 0 ? (
+                            profile.required_skills.length > 0 ? (
                             profile.required_skills.map((skill, idx) => (
                               <Badge key={idx} variant="outline" className="bg-white">
                                 {skill}
@@ -365,7 +411,7 @@ const Profiles = () => {
                       <div className="flex gap-3 pt-4 border-t">
                         {!profile.approved && (
                           <Button
-                            onClick={() => handleApprove(profile._id)}
+                            onClick={() => initiateApprove(profile._id)}
                             className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800"
                           >
                             ✓ Approve
@@ -393,9 +439,91 @@ const Profiles = () => {
             ))}
           </div>
         )}
+
+        {/* Approval Dialog */}
+        {showApproveDialog && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in duration-200">
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Approve & Post</h3>
+              <p className="text-gray-600 mb-6">
+                Do you want to post this job to social media?
+              </p>
+
+              <div className="space-y-4 mb-6">
+                <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
+                  <input
+                    type="checkbox"
+                    id="post-instagram"
+                    checked={postTo.instagram}
+                    onChange={(e) => setPostTo({ ...postTo, instagram: e.target.checked })}
+                    className="h-5 w-5 text-blue-600 rounded focus:ring-blue-500"
+                  />
+                  <label htmlFor="post-instagram" className="flex-1 font-medium text-gray-700 cursor-pointer">
+                    Post to Instagram 📸
+                  </label>
+                </div>
+
+                <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
+                  <input
+                    type="checkbox"
+                    id="post-facebook"
+                    checked={postTo.facebook}
+                    onChange={(e) => setPostTo({ ...postTo, facebook: e.target.checked })}
+                    className="h-5 w-5 text-blue-600 rounded focus:ring-blue-500"
+                  />
+                  <label htmlFor="post-facebook" className="flex-1 font-medium text-gray-700 cursor-pointer">
+                    Post to Facebook 📘
+                  </label>
+                </div>
+
+                {(postTo.instagram || postTo.facebook) && (
+                  <div className="space-y-2 animate-in slide-in-from-top-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Upload Image (Optional)
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setSelectedImage(e.target.files[0])}
+                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                    />
+                    <p className="text-xs text-gray-500">
+                      If no image is selected, the default Job Description image will be used.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowApproveDialog(false)}
+                  disabled={approving}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleApproveConfirm}
+                  disabled={approving}
+                  className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
+                >
+                  {approving ? (
+                    <span className="flex items-center gap-2">
+                      <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>
+                      Processing...
+                    </span>
+                  ) : (
+                    "Confirm Approval"
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );
 };
 
 export default Profiles;
+
