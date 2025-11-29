@@ -1,0 +1,325 @@
+import sqlite3
+import os
+from datetime import datetime
+
+class DatabaseManager:
+    def __init__(self):
+        self.backend_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'backend')
+        self.selected_candidates_db = os.path.join(self.backend_dir, 'selected_candidates.db')
+        self.userids_db = os.path.join(self.backend_dir, 'userids.db')
+        self.interview_db = os.path.join(self.backend_dir, 'interview.db')
+        self.init_databases()
+    
+    def init_databases(self):
+        """Initialize both databases with required tables"""
+        # Initialize selected_candidates.db (already exists, just ensure test tables)
+        self.init_selected_candidates_db()
+        
+        # Initialize userids.db
+        self.init_userids_db()
+        
+        # Initialize interview.db
+        self.init_interview_db()
+    
+    def init_selected_candidates_db(self):
+        """Initialize selected_candidates database with test-related tables"""
+        conn = sqlite3.connect(self.selected_candidates_db)
+        cursor = conn.cursor()
+        
+        # Create tests table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS tests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                test_name TEXT NOT NULL,
+                test_description TEXT,
+                questions TEXT NOT NULL,  -- JSON string of selected questions
+                platform_type TEXT DEFAULT 'codeforces',  -- 'codeforces' or 'custom'
+                custom_platform_name TEXT,  -- Name of custom platform if platform_type is 'custom'
+                created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                status TEXT DEFAULT 'active'  -- active, completed, archived
+            )
+        ''')
+        
+        # Create test_notifications table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS test_notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                test_id INTEGER NOT NULL,
+                candidate_email TEXT NOT NULL,
+                notification_sent BOOLEAN DEFAULT FALSE,
+                sent_date TIMESTAMP,
+                test_link TEXT,
+                FOREIGN KEY (test_id) REFERENCES tests (id)
+            )
+        ''')
+        
+        conn.commit()
+        conn.close()
+    
+    def init_userids_db(self):
+        """Initialize userids database"""
+        conn = sqlite3.connect(self.userids_db)
+        cursor = conn.cursor()
+        
+        # Create userids table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS userids (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                candidate_email TEXT NOT NULL,
+                codeforces_username TEXT NOT NULL,
+                test_id INTEGER,
+                registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (test_id) REFERENCES tests (id)
+            )
+        ''')
+        
+        # Create test_results table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS test_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                userid_id INTEGER NOT NULL,
+                test_id INTEGER NOT NULL,
+                question_id TEXT NOT NULL,
+                solved BOOLEAN DEFAULT FALSE,
+                submission_time TIMESTAMP,
+                result_data TEXT,  -- JSON string of detailed results
+                FOREIGN KEY (userid_id) REFERENCES userids (id),
+                FOREIGN KEY (test_id) REFERENCES tests (id)
+            )
+        ''')
+        
+        conn.commit()
+        conn.close()
+    
+    def init_interview_db(self):
+        """Initialize interview database to store approved candidates"""
+        conn = sqlite3.connect(self.interview_db)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS interview_candidates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                candidate_email TEXT NOT NULL,
+                codeforces_username TEXT,
+                test_id INTEGER,
+                approved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(candidate_email, test_id)
+            )
+        ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS interview_schedules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                candidate_email TEXT NOT NULL,
+                interview_start TIMESTAMP NOT NULL,
+                interview_end TIMESTAMP NOT NULL,
+                hr_email TEXT,
+                meeting_link TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        conn.commit()
+        conn.close()
+
+    def save_interview_candidate(self, candidate_email: str, codeforces_username: str = None, test_id: int = None) -> int:
+        """Insert a candidate into interview list; idempotent on (email, test_id)"""
+        conn = sqlite3.connect(self.interview_db)
+        cursor = conn.cursor()
+        
+        # Try insert, if exists then fetch existing id
+        try:
+            cursor.execute('''
+                INSERT OR IGNORE INTO interview_candidates (candidate_email, codeforces_username, test_id)
+                VALUES (?, ?, ?)
+            ''', (candidate_email, codeforces_username, test_id))
+            conn.commit()
+            if cursor.rowcount == 0:
+                cursor.execute('SELECT id FROM interview_candidates WHERE candidate_email = ? AND IFNULL(test_id, -1) IS IFNULL(?, -1)', (candidate_email, test_id))
+                row = cursor.fetchone()
+                candidate_id = row[0] if row else None
+            else:
+                candidate_id = cursor.lastrowid
+        finally:
+            conn.close()
+        
+        return candidate_id if candidate_id is not None else -1
+
+    def get_interview_candidate_emails(self) -> list:
+        """Return list of candidate emails from interview_candidates"""
+        conn = sqlite3.connect(self.interview_db)
+        cursor = conn.cursor()
+        cursor.execute('SELECT candidate_email FROM interview_candidates ORDER BY approved_at DESC')
+        rows = cursor.fetchall()
+        conn.close()
+        return [row[0] for row in rows]
+
+    def save_interview_schedule(self, candidate_email: str, start_iso: str, end_iso: str, hr_email: str = None, meeting_link: str = None) -> int:
+        conn = sqlite3.connect(self.interview_db)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO interview_schedules (candidate_email, interview_start, interview_end, hr_email, meeting_link)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (candidate_email, start_iso, end_iso, hr_email, meeting_link))
+        schedule_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        return schedule_id
+
+    def create_test(self, test_name, test_description, questions, platform_type='codeforces', custom_platform_name=None):
+        """Create a new test"""
+        conn = sqlite3.connect(self.selected_candidates_db)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT INTO tests (test_name, test_description, questions, platform_type, custom_platform_name)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (test_name, test_description, questions, platform_type, custom_platform_name))
+        
+        test_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        
+        return test_id
+    
+    def get_test_platform(self, test_id):
+        """Get platform type for a test"""
+        conn = sqlite3.connect(self.selected_candidates_db)
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT platform_type, custom_platform_name FROM tests WHERE id = ?', (test_id,))
+        result = cursor.fetchone()
+        conn.close()
+        
+        if result:
+            return {'platform_type': result[0] or 'codeforces', 'custom_platform_name': result[1]}
+        return {'platform_type': 'codeforces', 'custom_platform_name': None}
+    
+    def get_all_candidates(self):
+        """Get all selected candidates"""
+        conn = sqlite3.connect(self.selected_candidates_db)
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT candidate_email, candidate_name FROM selected_candidates')
+        candidates = cursor.fetchall()
+        conn.close()
+        
+        return [{'email': row[0], 'name': row[1]} for row in candidates]
+    
+    def send_test_notifications(self, test_id, test_link):
+        """Send test notifications to all candidates"""
+        conn = sqlite3.connect(self.selected_candidates_db)
+        cursor = conn.cursor()
+        
+        candidates = self.get_all_candidates()
+        
+        for candidate in candidates:
+            cursor.execute('''
+                INSERT INTO test_notifications (test_id, candidate_email, test_link)
+                VALUES (?, ?, ?)
+            ''', (test_id, candidate['email'], test_link))
+        
+        conn.commit()
+        conn.close()
+        
+        return candidates
+    
+    def register_codeforces_user(self, candidate_email, codeforces_username, test_id):
+        """Register a candidate's Codeforces username"""
+        conn = sqlite3.connect(self.userids_db)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT INTO userids (candidate_email, codeforces_username, test_id)
+            VALUES (?, ?, ?)
+        ''', (candidate_email, codeforces_username, test_id))
+        
+        userid_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        
+        return userid_id
+    
+    def get_test_questions(self, test_id):
+        """Get questions for a specific test"""
+        conn = sqlite3.connect(self.selected_candidates_db)
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT questions FROM tests WHERE id = ?', (test_id,))
+        result = cursor.fetchone()
+        conn.close()
+        
+        if result:
+            import json
+            return json.loads(result[0])
+        return []
+    
+    def get_registered_users(self, test_id):
+        """Get all registered users for a test"""
+        conn = sqlite3.connect(self.userids_db)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT id, candidate_email, codeforces_username 
+            FROM userids WHERE test_id = ?
+        ''', (test_id,))
+        
+        users = cursor.fetchall()
+        conn.close()
+        
+        return [{'id': row[0], 'email': row[1], 'username': row[2]} for row in users]
+    
+    def save_test_results(self, userid_id, test_id, results):
+        """Save test results for a user"""
+        conn = sqlite3.connect(self.userids_db)
+        cursor = conn.cursor()
+        
+        # Clear existing results for this user
+        cursor.execute('DELETE FROM test_results WHERE userid_id = ?', (userid_id,))
+        
+        # Insert new results
+        for question_id, result_data in results.items():
+            cursor.execute('''
+                INSERT INTO test_results (userid_id, test_id, question_id, solved, result_data)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (userid_id, test_id, question_id, result_data.get('solved', False), str(result_data)))
+        
+        conn.commit()
+        conn.close()
+    
+    def get_test_results(self, test_id):
+        """Get all test results for a specific test"""
+        conn = sqlite3.connect(self.userids_db)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT u.candidate_email, u.codeforces_username, tr.question_id, tr.solved, tr.result_data
+            FROM userids u
+            JOIN test_results tr ON u.id = tr.userid_id
+            WHERE u.test_id = ?
+            ORDER BY u.candidate_email, tr.question_id
+        ''', (test_id,))
+        
+        results = cursor.fetchall()
+        conn.close()
+        
+        return results
+    
+    def get_all_tests(self):
+        """Get all tests"""
+        conn = sqlite3.connect(self.selected_candidates_db)
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT * FROM tests ORDER BY created_date DESC')
+        tests = cursor.fetchall()
+        conn.close()
+        
+        return tests
+
+    def archive_test(self, test_id: int) -> None:
+        """Soft-delete a test by marking status as 'archived'"""
+        conn = sqlite3.connect(self.selected_candidates_db)
+        cursor = conn.cursor()
+        cursor.execute('UPDATE tests SET status = ? WHERE id = ?', ('archived', test_id))
+        conn.commit()
+        conn.close()

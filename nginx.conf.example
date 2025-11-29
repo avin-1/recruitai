@@ -1,0 +1,71 @@
+worker_processes  1;
+
+events {
+    worker_connections  1024;
+}
+
+http {
+    include       mime.types;
+    default_type  application/octet-stream;
+    sendfile        on;
+    keepalive_timeout  65;
+
+    server {
+        listen       80;
+        server_name  localhost;
+
+        # Frontend Static Files
+        # UPDATE THIS PATH to point to your 'front/dist' directory
+        root   "C:/Users/Avinash/OneDrive/Desktop/REDAI/front/dist";
+        index  index.html index.htm;
+
+        # Common proxy settings for all API routes
+        # These headers ensure proper request forwarding
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+
+        # Interview API (Port 5002)
+        location /api/interviews {
+            proxy_pass http://127.0.0.1:5002;
+        }
+
+        # Shortlisting API (Port 5001) - Tests
+        location /api/tests {
+            proxy_pass http://127.0.0.1:5001;
+        }
+        
+        # Shortlisting API - Notifications
+        location /api/notifications {
+            proxy_pass http://127.0.0.1:5001;
+        }
+
+        # Shortlisting API - Candidates
+        location /api/candidates {
+            proxy_pass http://127.0.0.1:5001;
+        }
+
+        # Upload/Core API (Port 8080) - File upload endpoint
+        # Increased size limit for resume/file uploads
+        location /upload {
+            proxy_pass http://127.0.0.1:8080;
+            client_max_body_size 100M;
+        }
+
+        # Upload/Core API - All other endpoints
+        location ~ ^/(profiles|jobs|job|jobs_counts|applications|apply|delete|approve|modify|select_candidates|selected_candidates|create-job-profile)$ {
+            proxy_pass http://127.0.0.1:8080;
+        }
+
+        # Handle SPA routing (redirect 404 to index.html)
+        # This MUST be last so API routes take precedence
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+    }
+}

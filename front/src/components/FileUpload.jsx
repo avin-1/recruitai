@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { CORE_API_BASE } from '@/lib/apiConfig';
 
 const FileUpload = () => {
   const [file, setFile] = useState(null);
@@ -21,7 +22,7 @@ const FileUpload = () => {
     formData.append('file', file);
 
     try {
-      const res = await axios.post('http://localhost:8080/upload', formData, {
+      const res = await axios.post(`${CORE_API_BASE}/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress: (progressEvent) => {
           const percentCompleted = Math.round(

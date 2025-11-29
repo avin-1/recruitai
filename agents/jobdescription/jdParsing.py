@@ -26,9 +26,17 @@ def extract_text_from_pdf(pdf_path: str) -> Optional[str]:
 
 
 def load_prompt() -> Optional[str]:
+    """Load the prompt from file, extracting only the actual prompt content."""
     try:
         with open(PROMPT_FILE, "r", encoding="utf-8") as f:
-            return f.read()
+            content = f.read()
+            # If the file has metadata, extract only the prompt content part
+            if "Prompt Content:" in content:
+                # Extract content after "Prompt Content:"
+                parts = content.split("Prompt Content:", 1)
+                if len(parts) > 1:
+                    return parts[1].strip()
+            return content
     except Exception as exc:
         print(f"Error reading prompt file: {exc}")
         return None
@@ -49,7 +57,11 @@ def _parse_with_llm(text: str, prompt: str, retries: int = 5) -> Optional[Dict]:
     if not text or not prompt:
         return None
     client = _get_openai_client()
-    full_prompt = f"{prompt}\n\n---\nJob Description:\n{text}\n---\nJSON Output:"
+    # Replace placeholder if it exists, otherwise append the text
+    if "{job_description_text}" in prompt:
+        full_prompt = prompt.replace("{job_description_text}", text)
+    else:
+        full_prompt = f"{prompt}\n\n---\nJob Description:\n{text}\n---\nJSON Output:"
     delay_seconds = 1
     for _ in range(retries):
         try:
@@ -89,6 +101,26 @@ def parse_job_description(file_path: str) -> Dict:
         raise RuntimeError("Parsing prompt not available")
 
     structured_profile = _parse_with_llm(job_text, parsing_prompt)
+    if not structured_profile:
+        raise RuntimeError("Failed to obtain structured profile from LLM")
+
+    return structured_profile
+
+
+def parse_job_description_from_text(job_description_text: str) -> Dict:
+    """Return parsed job profile as dict from text input (not a file).
+    
+    This function loads the parsing prompt, calls the LLM with the provided text,
+    and returns the structured profile dictionary.
+    """
+    if not job_description_text or not job_description_text.strip():
+        raise ValueError("Job description text cannot be empty")
+
+    parsing_prompt = load_prompt()
+    if not parsing_prompt:
+        raise RuntimeError("Parsing prompt not available")
+
+    structured_profile = _parse_with_llm(job_description_text.strip(), parsing_prompt)
     if not structured_profile:
         raise RuntimeError("Failed to obtain structured profile from LLM")
 

@@ -372,6 +372,47 @@ def get_selected_candidates():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+# ---------------- Create Job Profile from Text ----------------
+@app.route("/create-job-profile", methods=["POST"])
+def create_job_profile_from_text():
+    """Create a job profile from text input (job description prompt/details)"""
+    data = request.get_json()
+    job_description_text = data.get("job_description")
+    
+    if not job_description_text:
+        return jsonify({"error": "job_description is required"}), 400
+    
+    try:
+        # Import the text-based parsing function
+        import sys
+        import os
+        backend_dir = os.path.dirname(os.path.abspath(__file__))
+        jd_path = os.path.join(backend_dir, "..", "agents", "jobdescription")
+        if jd_path not in sys.path:
+            sys.path.insert(0, jd_path)
+        
+        from jdParsing import parse_job_description_from_text
+        
+        # Parse the job description text into structured profile
+        profile = parse_job_description_from_text(job_description_text)
+        
+        # Set approved to False by default (needs HR approval)
+        profile["approved"] = False
+        
+        # Insert into MongoDB
+        result = collection.insert_one(profile)
+        profile["_id"] = str(result.inserted_id)
+        
+        return jsonify({
+            "message": "Job profile created successfully",
+            "profile": profile
+        }), 201
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 # ---------------- Run App ----------------
 if __name__ == "__main__":
-    app.run(port=8080, debug=True)
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port, debug=False)

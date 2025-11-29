@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { CORE_API_BASE } from '@/lib/apiConfig';
 
-const API_BASE = 'http://localhost:8080';
+const API_BASE = CORE_API_BASE;
 
 const Applicants = () => {
   const [jobs, setJobs] = useState([]);
