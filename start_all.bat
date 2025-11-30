@@ -1,0 +1,23 @@
+@echo off
+echo Starting REDAI Services...
+
+echo Starting Backend API (Port 8080)...
+start "Backend API" cmd /k "cd backend && python upload_api.py"
+
+echo Starting Shortlisting API (Port 5001)...
+start "Shortlisting API" cmd /k "cd agents/shortlisting && python api.py"
+
+echo Starting Interview API (Port 5002)...
+start "Interview API" cmd /k "cd agents/interview && python api.py"
+
+echo Starting Job Description Worker...
+start "JD Worker" cmd /k "cd agents/jobdescription && python main.py"
+
+echo Starting settings API ...
+start "Backend API" cmd /k "cd backend && python settings_api.py"
+
+echo Starting Frontend...
+start "Frontend" cmd /k "cd front && npm run dev"
+
+echo All services launched!
+pause
