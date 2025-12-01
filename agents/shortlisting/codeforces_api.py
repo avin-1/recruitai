@@ -195,9 +195,21 @@ class CodeforcesAPI:
             
             # Create a mapping of problem IDs to test questions
             test_problem_ids = set()
-            for question in test_questions:
-                problem_id = f"{question.get('contestId', '')}{question.get('index', '')}"
-                test_problem_ids.add(problem_id)
+            
+            # Extract questions from sections if necessary
+            flat_questions = []
+            for item in test_questions:
+                if isinstance(item, dict) and 'questions' in item and isinstance(item['questions'], list):
+                    flat_questions.extend(item['questions'])
+                else:
+                    flat_questions.append(item)
+            
+            for question in flat_questions:
+                # Handle Codeforces questions
+                if question.get('type') == 'codeforces' or ('contestId' in question and 'index' in question):
+                    q_data = question.get('data', question)
+                    problem_id = f"{q_data.get('contestId', '')}{q_data.get('index', '')}"
+                    test_problem_ids.add(problem_id)
             
             # Filter submissions that match test questions
             relevant_submissions = []

@@ -33,10 +33,44 @@ const InterviewScheduler = () => {
 
   const loadCandidates = async () => {
     try {
-      const res = await fetch(`${INTERVIEW_API_BASE}/interviews/candidates`);
+      // Fetch detailed candidate info to display in list
+      const res = await fetch(`${INTERVIEW_API_BASE}/interviews/candidates-with-schedules`);
       const data = await res.json();
-      if (data.success) setEmails(data.emails);
-    } catch { }
+      if (data.success) {
+        // Filter out rejected candidates if any (though API should handle this)
+        const activeCandidates = (data.candidates || []).filter(c => c.status !== 'rejected');
+        setEmails(activeCandidates);
+      }
+    } catch (err) {
+      console.error("Failed to load candidates", err);
+    }
+  };
+
+  const handleReject = async (candidateEmail) => {
+    if (!confirm(`Are you sure you want to remove ${candidateEmail} from the interview list?`)) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch(`${INTERVIEW_API_BASE}/interviews/reject-candidate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidate_email: candidateEmail })
+      });
+      const data = await res.json();
+      if (data.success) {
+        // Remove from local state immediately
+        setEmails(prev => prev.filter(c => (c.email || c) !== candidateEmail));
+        alert(`Candidate ${candidateEmail} removed.`);
+      } else {
+        alert('Failed to remove candidate: ' + (data.error || 'Unknown error'));
+      }
+    } catch (err) {
+      alert('Error removing candidate: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fetchAvailability = async () => {
@@ -174,7 +208,11 @@ const InterviewScheduler = () => {
       const res = await fetch(`${INTERVIEW_API_BASE}/interviews/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMsg, hr_email: hrEmail })
+        body: JSON.stringify({
+          message: userMsg,
+          hr_email: hrEmail,
+          client_time: new Date().toISOString()
+        })
       });
       const data = await res.json();
 
@@ -204,6 +242,32 @@ const InterviewScheduler = () => {
           </CardHeader>
           <CardContent>
             <div className="mb-4 text-sm text-gray-700">Candidates in interview list: {emails.length}</div>
+
+            {/* Candidate List Section */}
+            <div className="mb-6 border rounded-lg p-4 bg-gray-50">
+              <h3 className="font-semibold mb-3">Candidates</h3>
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {emails.length === 0 ? (
+                  <div className="text-sm text-gray-500 italic">No candidates found.</div>
+                ) : (
+                  emails.map((candidate, idx) => (
+                    <div key={idx} className="flex items-center justify-between bg-white p-2 rounded border text-sm">
+                      <span className="truncate flex-1" title={candidate.email || candidate}>{candidate.email || candidate}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
+                        onClick={() => handleReject(candidate.email || candidate)}
+                        title="Remove Candidate"
+                      >
+                        <X size={16} />
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
             <div className="flex gap-2 mb-4">
               <Button onClick={fetchAvailability} disabled={loading}>Fetch HR Availability (Next 5 days)</Button>
               <Button onClick={proposeSlots} disabled={loading || availability.length === 0}>Ask LLM for Proposals</Button>
@@ -247,7 +311,7 @@ const InterviewScheduler = () => {
                 onClick={() => navigate('/interview-candidates')}
                 className="ml-auto"
               >
-                End Interview Process
+                View All Candidates
               </Button>
             </div>
           </CardContent>

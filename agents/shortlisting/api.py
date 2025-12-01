@@ -34,9 +34,13 @@ def get_shortlisting_agent():
 app = Flask(__name__)
 CORS(app)
 
+from test_agent import TestGenerationAgent
+
 # Initialize services
 test_service = TestService()
 db_manager = DatabaseManager()
+test_gen_agent = TestGenerationAgent()
+
 # Lazy load LLM analyzer to prevent crashes during Flask reloads
 llm_analyzer = None
 _llm_analyzer_module = None
@@ -113,6 +117,28 @@ def get_problems():
             'error': str(e)
         }), 500
 
+@app.route('/api/tests/generate-questions', methods=['POST'])
+def generate_questions():
+    """Generate questions using AI"""
+    try:
+        data = request.get_json()
+        topic = data.get('topic')
+        count = data.get('count', 5)
+        difficulty = data.get('difficulty', 'medium')
+        q_type = data.get('type', 'multiple_choice')
+        
+        if not topic:
+            return jsonify({'success': False, 'error': 'Topic is required'}), 400
+            
+        questions = test_gen_agent.generate_questions(topic, count, difficulty, q_type)
+        
+        return jsonify({
+            'success': True,
+            'questions': questions
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/tests/create', methods=['POST'])
 def create_test():
     """Create a new test"""
@@ -120,7 +146,8 @@ def create_test():
         data = request.get_json()
         test_name = data.get('test_name')
         test_description = data.get('test_description', '')
-        selected_questions = data.get('questions', [])
+        # 'questions' can now be a list (legacy Codeforces) OR a list of sections (New format)
+        questions_data = data.get('questions', []) 
         platform_type = data.get('platform_type', 'codeforces')
         custom_platform_name = data.get('custom_platform_name', None)
         
@@ -130,14 +157,17 @@ def create_test():
                 'error': 'Test name is required'
             }), 400
         
-        # Only require questions if Codeforces platform
-        if platform_type == 'codeforces' and not selected_questions:
-            return jsonify({
+        # Validation logic
+        if platform_type == 'codeforces' and not questions_data:
+             return jsonify({
                 'success': False,
                 'error': 'Questions are required for Codeforces tests'
             }), 400
+            
+        # If platform is custom/internal, questions_data might be sections.
+        # We store it as JSON string regardless.
         
-        test_id = db_manager.create_test(test_name, test_description, json.dumps(selected_questions) if selected_questions else '[]', platform_type, custom_platform_name)
+        test_id = db_manager.create_test(test_name, test_description, json.dumps(questions_data) if questions_data else '[]', platform_type, custom_platform_name)
         
         try:
             get_shortlisting_agent().notify(
@@ -739,6 +769,81 @@ def get_interview_candidates():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/interviews/candidates-with-schedules', methods=['GET'])
+def get_interview_candidates_with_schedules():
+    try:
+        candidates = db_manager.get_interview_candidates_details()
+        return jsonify({'success': True, 'candidates': candidates})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/interviews/reject-candidate', methods=['POST'])
+def reject_interview_candidate():
+    try:
+        data = request.get_json() or {}
+        candidate_email = data.get('candidate_email')
+        if not candidate_email:
+            return jsonify({'success': False, 'error': 'candidate_email is required'}), 400
+            
+        success = db_manager.reject_candidate(candidate_email)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/interviews/select-candidate', methods=['POST'])
+def select_interview_candidate():
+    try:
+        data = request.get_json() or {}
+        candidate_email = data.get('candidate_email')
+        if not candidate_email:
+            return jsonify({'success': False, 'error': 'candidate_email is required'}), 400
+            
+        success = db_manager.select_candidate(candidate_email)
+        if success:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'success': False, 'error': 'Failed to select candidate'}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# Lazy load interview agent
+interview_agent = None
+def get_interview_agent():
+    global interview_agent
+    if interview_agent is None:
+        try:
+            from interview_agent import InterviewChatAgent
+            interview_agent = InterviewChatAgent()
+        except Exception as e:
+            print(f"Failed to load InterviewChatAgent: {e}")
+            return None
+    return interview_agent
+
+@app.route('/api/interviews/chat', methods=['POST'])
+def interview_chat():
+    """AI chat to suggest interview slots using LLM"""
+    try:
+        data = request.get_json() or {}
+        message = data.get('message', '')
+        
+        agent = get_interview_agent()
+        if not agent:
+            return jsonify({
+                'success': True, 
+                'response': "I'm currently offline (Agent unavailable).", 
+                'slots': []
+            })
+            
+        result = agent.process_chat(message, data)
+        
+        return jsonify({
+            'success': True,
+            'response': result.get('response'),
+            'slots': result.get('slots', [])
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/interviews/availability', methods=['POST'])
 def get_hr_availability():
     """Placeholder: Would call Google Calendar API to fetch next 5 days availability"""
@@ -789,6 +894,58 @@ def schedule_interviews():
             scheduled.append({'email': email, 'schedule_id': schedule_id})
         # Placeholder: send emails via existing email service if desired
         return jsonify({'success': True, 'scheduled': scheduled, 'meeting_link': meeting_link})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/tests/<int:test_id>/submit', methods=['POST'])
+def submit_test(test_id):
+    """Submit test answers (manual questions)"""
+    try:
+        data = request.get_json()
+        candidate_email = data.get('candidate_email')
+        answers = data.get('answers', {})
+        
+        if not candidate_email:
+            return jsonify({'success': False, 'error': 'Candidate email is required'}), 400
+            
+        # Get userid_id
+        conn = sqlite3.connect(db_manager.userids_db)
+        cursor = conn.cursor()
+        cursor.execute('SELECT id FROM userids WHERE candidate_email = ? AND test_id = ?', (candidate_email, test_id))
+        row = cursor.fetchone()
+        conn.close()
+        
+        if not row:
+            return jsonify({'success': False, 'error': 'Candidate not registered for this test'}), 404
+            
+        userid_id = row[0]
+        
+        # Format results for saving
+        formatted_results = {}
+        for q_id, answer in answers.items():
+            formatted_results[q_id] = {
+                'solved': True, # Mark as solved/submitted
+                'answer': answer,
+                'type': 'manual',
+                'submission_time': datetime.datetime.utcnow().isoformat()
+            }
+            
+        # Save results
+        db_manager.save_test_results(userid_id, test_id, formatted_results)
+        
+        try:
+            get_shortlisting_agent().notify(
+                f"✅ Candidate {candidate_email} submitted test {test_id}",
+                'success',
+                reasoning=f"Received and saved answers for {len(answers)} questions"
+            )
+        except:
+            pass
+            
+        return jsonify({
+            'success': True,
+            'message': 'Test submitted successfully'
+        })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

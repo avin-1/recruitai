@@ -21,9 +21,16 @@ class DatabaseManager:
         # Initialize interview.db
         self.init_interview_db()
     
+    def _get_connection(self, db_path):
+        """Get a database connection with increased timeout and WAL mode"""
+        conn = sqlite3.connect(db_path, timeout=30.0)
+        # Enable Write-Ahead Logging for better concurrency
+        conn.execute('PRAGMA journal_mode=WAL')
+        return conn
+
     def init_selected_candidates_db(self):
         """Initialize selected_candidates database with test-related tables"""
-        conn = sqlite3.connect(self.selected_candidates_db)
+        conn = self._get_connection(self.selected_candidates_db)
         cursor = conn.cursor()
         
         # Create tests table
@@ -58,7 +65,7 @@ class DatabaseManager:
     
     def init_userids_db(self):
         """Initialize userids database"""
-        conn = sqlite3.connect(self.userids_db)
+        conn = self._get_connection(self.userids_db)
         cursor = conn.cursor()
         
         # Create userids table
@@ -93,7 +100,7 @@ class DatabaseManager:
     
     def init_interview_db(self):
         """Initialize interview database to store approved candidates"""
-        conn = sqlite3.connect(self.interview_db)
+        conn = self._get_connection(self.interview_db)
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -119,12 +126,24 @@ class DatabaseManager:
             )
         ''')
         
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS interview_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                candidate_email TEXT NOT NULL,
+                status TEXT DEFAULT 'pending',
+                offer_letter_sent BOOLEAN DEFAULT FALSE,
+                offer_sent_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(candidate_email)
+            )
+        ''')
+        
         conn.commit()
         conn.close()
 
     def save_interview_candidate(self, candidate_email: str, codeforces_username: str = None, test_id: int = None) -> int:
         """Insert a candidate into interview list; idempotent on (email, test_id)"""
-        conn = sqlite3.connect(self.interview_db)
+        conn = self._get_connection(self.interview_db)
         cursor = conn.cursor()
         
         # Try insert, if exists then fetch existing id
@@ -147,15 +166,88 @@ class DatabaseManager:
 
     def get_interview_candidate_emails(self) -> list:
         """Return list of candidate emails from interview_candidates"""
-        conn = sqlite3.connect(self.interview_db)
+        conn = self._get_connection(self.interview_db)
         cursor = conn.cursor()
         cursor.execute('SELECT candidate_email FROM interview_candidates ORDER BY approved_at DESC')
         rows = cursor.fetchall()
         conn.close()
         return [row[0] for row in rows]
 
+    def get_interview_candidates_details(self) -> list:
+        """Return list of candidate details from interview_candidates with schedule and status"""
+        conn = self._get_connection(self.interview_db)
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT DISTINCT 
+                ic.candidate_email,
+                ic.codeforces_username,
+                ic.test_id,
+                ic.approved_at,
+                isch.interview_start,
+                isch.interview_end,
+                isch.hr_email,
+                isch.meeting_link,
+                COALESCE(ir.status, 'pending') as status,
+                COALESCE(ir.offer_letter_sent, 0) as offer_letter_sent
+            FROM interview_candidates ic
+            LEFT JOIN interview_schedules isch ON ic.candidate_email = isch.candidate_email
+            LEFT JOIN interview_results ir ON ic.candidate_email = ir.candidate_email
+            ORDER BY ic.approved_at DESC
+        ''')
+        rows = cursor.fetchall()
+        conn.close()
+        return [{
+            'email': row[0],
+            'username': row[1], # frontend expects 'username' or 'codeforces_username' depending on usage, keeping 'username' for consistency with previous simple version, but frontend might check codeforces_username
+            'codeforces_username': row[1],
+            'test_id': row[2],
+            'approved_at': row[3],
+            'interview_start': row[4],
+            'interview_end': row[5],
+            'hr_email': row[6],
+            'meeting_link': row[7],
+            'status': row[8],
+            'offer_letter_sent': bool(row[9])
+        } for row in rows]
+
+    def reject_candidate(self, candidate_email: str) -> bool:
+        """Reject candidate and remove from database"""
+        conn = self._get_connection(self.interview_db)
+        cursor = conn.cursor()
+        # Remove from interview_results
+        cursor.execute('DELETE FROM interview_results WHERE candidate_email = ?', (candidate_email,))
+        # Remove from interview_candidates
+        cursor.execute('DELETE FROM interview_candidates WHERE candidate_email = ?', (candidate_email,))
+        # Remove from interview_schedules
+        cursor.execute('DELETE FROM interview_schedules WHERE candidate_email = ?', (candidate_email,))
+        conn.commit()
+        conn.close()
+        return True
+
+    def select_candidate(self, candidate_email: str) -> bool:
+        """Select candidate and mark offer letter as sent"""
+        conn = self._get_connection(self.interview_db)
+        cursor = conn.cursor()
+        try:
+            # Check if entry exists in interview_results
+            cursor.execute('SELECT id FROM interview_results WHERE candidate_email = ?', (candidate_email,))
+            row = cursor.fetchone()
+            
+            if row:
+                cursor.execute('UPDATE interview_results SET status = ?, offer_letter_sent = ? WHERE candidate_email = ?', ('selected', 1, candidate_email))
+            else:
+                cursor.execute('INSERT INTO interview_results (candidate_email, status, offer_letter_sent) VALUES (?, ?, ?)', (candidate_email, 'selected', 1))
+            
+            conn.commit()
+            return True
+        except Exception as e:
+            print(f"Error selecting candidate: {e}")
+            return False
+        finally:
+            conn.close()
+
     def save_interview_schedule(self, candidate_email: str, start_iso: str, end_iso: str, hr_email: str = None, meeting_link: str = None) -> int:
-        conn = sqlite3.connect(self.interview_db)
+        conn = self._get_connection(self.interview_db)
         cursor = conn.cursor()
         cursor.execute('''
             INSERT INTO interview_schedules (candidate_email, interview_start, interview_end, hr_email, meeting_link)
@@ -168,7 +260,7 @@ class DatabaseManager:
 
     def create_test(self, test_name, test_description, questions, platform_type='codeforces', custom_platform_name=None):
         """Create a new test"""
-        conn = sqlite3.connect(self.selected_candidates_db)
+        conn = self._get_connection(self.selected_candidates_db)
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -184,7 +276,7 @@ class DatabaseManager:
     
     def get_test_platform(self, test_id):
         """Get platform type for a test"""
-        conn = sqlite3.connect(self.selected_candidates_db)
+        conn = self._get_connection(self.selected_candidates_db)
         cursor = conn.cursor()
         
         cursor.execute('SELECT platform_type, custom_platform_name FROM tests WHERE id = ?', (test_id,))
@@ -197,7 +289,7 @@ class DatabaseManager:
     
     def get_all_candidates(self):
         """Get all selected candidates"""
-        conn = sqlite3.connect(self.selected_candidates_db)
+        conn = self._get_connection(self.selected_candidates_db)
         cursor = conn.cursor()
         
         cursor.execute('SELECT candidate_email, candidate_name FROM selected_candidates')
@@ -208,7 +300,7 @@ class DatabaseManager:
     
     def send_test_notifications(self, test_id, test_link):
         """Send test notifications to all candidates"""
-        conn = sqlite3.connect(self.selected_candidates_db)
+        conn = self._get_connection(self.selected_candidates_db)
         cursor = conn.cursor()
         
         candidates = self.get_all_candidates()
@@ -226,7 +318,7 @@ class DatabaseManager:
     
     def register_codeforces_user(self, candidate_email, codeforces_username, test_id):
         """Register a candidate's Codeforces username"""
-        conn = sqlite3.connect(self.userids_db)
+        conn = self._get_connection(self.userids_db)
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -242,7 +334,7 @@ class DatabaseManager:
     
     def get_test_questions(self, test_id):
         """Get questions for a specific test"""
-        conn = sqlite3.connect(self.selected_candidates_db)
+        conn = self._get_connection(self.selected_candidates_db)
         cursor = conn.cursor()
         
         cursor.execute('SELECT questions FROM tests WHERE id = ?', (test_id,))
@@ -256,7 +348,7 @@ class DatabaseManager:
     
     def get_registered_users(self, test_id):
         """Get all registered users for a test"""
-        conn = sqlite3.connect(self.userids_db)
+        conn = self._get_connection(self.userids_db)
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -271,25 +363,27 @@ class DatabaseManager:
     
     def save_test_results(self, userid_id, test_id, results):
         """Save test results for a user"""
-        conn = sqlite3.connect(self.userids_db)
+        conn = self._get_connection(self.userids_db)
         cursor = conn.cursor()
         
-        # Clear existing results for this user
-        cursor.execute('DELETE FROM test_results WHERE userid_id = ?', (userid_id,))
-        
-        # Insert new results
-        for question_id, result_data in results.items():
-            cursor.execute('''
-                INSERT INTO test_results (userid_id, test_id, question_id, solved, result_data)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (userid_id, test_id, question_id, result_data.get('solved', False), str(result_data)))
-        
-        conn.commit()
-        conn.close()
+        try:
+            # Clear existing results for this user
+            cursor.execute('DELETE FROM test_results WHERE userid_id = ?', (userid_id,))
+            
+            # Insert new results
+            for question_id, result_data in results.items():
+                cursor.execute('''
+                    INSERT INTO test_results (userid_id, test_id, question_id, solved, result_data)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (userid_id, test_id, question_id, result_data.get('solved', False), str(result_data)))
+            
+            conn.commit()
+        finally:
+            conn.close()
     
     def get_test_results(self, test_id):
         """Get all test results for a specific test"""
-        conn = sqlite3.connect(self.userids_db)
+        conn = self._get_connection(self.userids_db)
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -307,7 +401,7 @@ class DatabaseManager:
     
     def get_all_tests(self):
         """Get all tests"""
-        conn = sqlite3.connect(self.selected_candidates_db)
+        conn = self._get_connection(self.selected_candidates_db)
         cursor = conn.cursor()
         
         cursor.execute('SELECT * FROM tests ORDER BY created_date DESC')
@@ -318,7 +412,7 @@ class DatabaseManager:
 
     def archive_test(self, test_id: int) -> None:
         """Soft-delete a test by marking status as 'archived'"""
-        conn = sqlite3.connect(self.selected_candidates_db)
+        conn = self._get_connection(self.selected_candidates_db)
         cursor = conn.cursor()
         cursor.execute('UPDATE tests SET status = ? WHERE id = ?', ('archived', test_id))
         conn.commit()

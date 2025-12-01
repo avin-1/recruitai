@@ -128,13 +128,27 @@ The Recruitment Team
         userid_id = self.db.register_codeforces_user(candidate_email, codeforces_username, test_id)
         return userid_id
     
+    def _extract_questions(self, test_data: List[Dict]) -> List[Dict]:
+        """
+        Extract all questions from test data, handling both flat lists and section-based structures
+        """
+        all_questions = []
+        for item in test_data:
+            # Check if item is a section (has 'questions' list)
+            if isinstance(item, dict) and 'questions' in item and isinstance(item['questions'], list):
+                all_questions.extend(item['questions'])
+            else:
+                all_questions.append(item)
+        return all_questions
+
     def fetch_and_save_results(self, test_id: int) -> Dict:
         """
         Fetch results from Codeforces API and save to database
         """
         try:
             registered_users = self.db.get_registered_users(test_id)
-            test_questions = self.db.get_test_questions(test_id)
+            raw_test_questions = self.db.get_test_questions(test_id)
+            test_questions = self._extract_questions(raw_test_questions)
             
             if not registered_users:
                 return {
@@ -166,29 +180,58 @@ The Recruitment Team
                     
                     for question in test_questions:
                         try:
-                            problem_id = {
-                                'contestId': question.get('contestId'),
-                                'index': question.get('index')
-                            }
-                            
-                            if not problem_id.get('contestId') or not problem_id.get('index'):
-                                continue
-                            
-                            result = self.cf_api.check_problem_solved(user['username'], problem_id)
-                            question_id = self.cf_api.format_problem_id(question)
-                            user_results[question_id] = result
-                            
-                            if result.get('solved', False):
-                                user_solved_count += 1
+                            # Handle Codeforces questions
+                            if question.get('type') == 'codeforces' or ('contestId' in question and 'index' in question):
+                                # Extract data if it's wrapped in a 'data' field (new format) or use directly (legacy)
+                                q_data = question.get('data', question)
+                                
+                                problem_id = {
+                                    'contestId': q_data.get('contestId'),
+                                    'index': q_data.get('index')
+                                }
+                                
+                                if not problem_id.get('contestId') or not problem_id.get('index'):
+                                    continue
+                                
+                                result = self.cf_api.check_problem_solved(user['username'], problem_id)
+                                question_id = self.cf_api.format_problem_id(q_data)
+                                user_results[question_id] = result
+                                
+                                if result.get('solved', False):
+                                    user_solved_count += 1
                         except Exception as q_err:
                             error_msg = f"Error checking question for user {user.get('username', 'unknown')}: {str(q_err)}"
                             results_summary['errors'].append(error_msg)
                             print(error_msg)
                             continue
                     
-                    # Save results to database
+                    # Save results to database (merge with existing manual results if any)
                     if user_results:
-                        self.db.save_test_results(user['id'], test_id, user_results)
+                        # We need to be careful not to overwrite manual answers if we are just updating CF results
+                        # But save_test_results currently deletes all results for the user.
+                        # For now, let's assume this is fine or we might need to fetch existing results first.
+                        # Actually, save_test_results in database.py deletes everything.
+                        # We should probably fetch existing results first to preserve manual answers.
+                        
+                        # Fetch existing results to preserve manual answers
+                        existing_results_rows = self.db.get_test_results(test_id)
+                        # Filter for this user
+                        user_existing_results = {}
+                        for row in existing_results_rows:
+                            if row[0] == user['email']: # candidate_email
+                                # row: email, username, question_id, solved, result_data
+                                try:
+                                    import ast
+                                    # result_data is a string representation of a dict
+                                    data_dict = ast.literal_eval(row[4])
+                                    user_existing_results[row[2]] = data_dict
+                                except:
+                                    pass
+                        
+                        # Merge new CF results into existing results
+                        user_existing_results.update(user_results)
+                        
+                        self.db.save_test_results(user['id'], test_id, user_existing_results)
                         results_summary['processed_users'] += 1
                         results_summary['total_solved'] += user_solved_count
                     
@@ -213,7 +256,8 @@ The Recruitment Team
         Get formatted test results for display
         """
         raw_results = self.db.get_test_results(test_id)
-        test_questions = self.db.get_test_questions(test_id)
+        raw_test_questions = self.db.get_test_questions(test_id)
+        test_questions = self._extract_questions(raw_test_questions)
         
         # Group results by user
         user_results = {}

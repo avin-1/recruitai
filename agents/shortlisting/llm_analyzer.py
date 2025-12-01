@@ -240,7 +240,8 @@ class LLMPerformanceAnalyzer:
     def _rule_based_analysis(self, candidate_data: Dict, test_questions: List[Dict]) -> Dict:
         """Fallback rule-based analysis"""
         
-        total_questions = len(test_questions)
+        flat_questions = self._extract_questions(test_questions)
+        total_questions = len(flat_questions)
         solved_questions = candidate_data.get('total_solved', 0)
         username = candidate_data.get('username', 'Unknown')
         email = candidate_data.get('email', 'Unknown')
@@ -249,13 +250,13 @@ class LLMPerformanceAnalyzer:
         completion_rate = (solved_questions / total_questions) * 100 if total_questions > 0 else 0
         
         # Analyze difficulty levels
-        difficulty_analysis = self._analyze_difficulty_performance(candidate_data, test_questions)
+        difficulty_analysis = self._analyze_difficulty_performance(candidate_data, flat_questions)
         
         # Calculate performance score
-        performance_score = self._calculate_performance_score(candidate_data, test_questions)
+        performance_score = self._calculate_performance_score(candidate_data, flat_questions)
         
         # Generate insights
-        insights = self._generate_insights(candidate_data, test_questions, completion_rate)
+        insights = self._generate_insights(candidate_data, flat_questions, completion_rate)
         
         # Determine performance level
         performance_level = self._determine_performance_level(performance_score, completion_rate)
@@ -273,37 +274,105 @@ class LLMPerformanceAnalyzer:
             "difficulty_analysis": difficulty_analysis,
             "insights": insights,
             "recommendations": self._generate_recommendations(performance_score, completion_rate),
-            "strengths": self._identify_strengths(candidate_data, test_questions),
-            "areas_for_improvement": self._identify_improvement_areas(candidate_data, test_questions)
+            "strengths": self._identify_strengths(candidate_data, flat_questions),
+            "areas_for_improvement": self._identify_improvement_areas(candidate_data, flat_questions)
         }
     
+    def _extract_questions(self, test_questions: List[Dict]) -> List[Dict]:
+        """Extract questions from potential section structure"""
+        all_questions = []
+        for item in test_questions:
+            if isinstance(item, dict) and 'questions' in item and isinstance(item['questions'], list):
+                all_questions.extend(item['questions'])
+            else:
+                all_questions.append(item)
+        return all_questions
+
     def _create_analysis_prompt(self, candidate_data: Dict, test_questions: List[Dict]) -> str:
         """Create prompt for LLM analysis"""
+        
+        # Extract questions from sections if necessary
+        flat_questions = self._extract_questions(test_questions)
         
         prompt = f"""
         Analyze the following candidate's performance in a technical coding assessment:
         
         Candidate: {candidate_data.get('username', 'Unknown')}
         Email: {candidate_data.get('email', 'Unknown')}
-        Total Questions: {len(test_questions)}
+        Total Questions: {len(flat_questions)}
         Solved Questions: {candidate_data.get('total_solved', 0)}
         
         Question Details:
         """
         
-        for i, question in enumerate(test_questions, 1):
-            question_id = f"{question.get('contestId', '')}{question.get('index', '')}"
-            solved = candidate_data.get('questions', {}).get(question_id, {}).get('solved', False)
-            difficulty = question.get('rating', 'Unknown')
-            tags = ', '.join(question.get('tags', []))
-            
-            prompt += f"""
-            Question {i}: {question_id}
-            - Name: {question.get('name', 'Unknown')}
-            - Difficulty: {difficulty}
-            - Tags: {tags}
-            - Solved: {'Yes' if solved else 'No'}
-            """
+        for i, question in enumerate(flat_questions, 1):
+            # Determine question type and ID
+            if question.get('type') == 'codeforces' or ('contestId' in question and 'index' in question):
+                # Codeforces Question
+                q_data = question.get('data', question)
+                question_id = f"{q_data.get('contestId', '')}{q_data.get('index', '')}"
+                
+                # Get result data
+                result_data = candidate_data.get('questions', {}).get(question_id, {})
+                solved = result_data.get('solved', False)
+                difficulty = q_data.get('rating', 'Unknown')
+                tags = ', '.join(q_data.get('tags', []))
+                
+                prompt += f"""
+                Question {i} (Coding): {question_id}
+                - Name: {q_data.get('name', 'Unknown')}
+                - Difficulty: {difficulty}
+                - Tags: {tags}
+                - Solved: {'Yes' if solved else 'No'}
+                """
+            else:
+                # Manual Question (MCQ or Text)
+                q_type = question.get('type', 'text').upper()
+                question_text = question.get('question', 'Unknown Question')
+                question_id = str(question.get('id', i)) # Fallback ID
+                
+                # Try to find result by ID or index
+                # Note: Manual answers are stored by question ID if available, or we might need a better mapping strategy
+                # For now, let's assume api.py/database.py handles the mapping correctly in candidate_data['questions']
+                # But wait, manual questions might not have a stable ID if just indices. 
+                # In CandidateTest.jsx, we used `currentSection.id || idx` for ID.
+                # Let's assume the key in candidate_data['questions'] matches.
+                
+                # Actually, looking at api.py submit logic:
+                # answers is a dict of {questionId: answer}
+                # In CandidateTest.jsx: renderQuestion(q, idx, currentSection.id || idx)
+                # The key passed to onAnswer is `sectionId-idx` or similar? 
+                # No, in CandidateTest.jsx: `onAnswer={(val) => handleAnswer(sectionId, index, val)}`
+                # And `answers` state is `{[sectionId]: { [index]: val } }` ?
+                # No, let's check CandidateTest.jsx again.
+                
+                # In CandidateTest.jsx:
+                # const handleAnswer = (sectionId, questionId, value) => { ... }
+                # renderQuestion calls it with `q.id || idx`.
+                # So the key is `q.id` or the index.
+                
+                # In the prompt, we just want to show the Question and the Answer.
+                # We need to look up the answer in candidate_data.
+                
+                # For now, let's try to find the answer in candidate_data['questions']
+                # The keys in candidate_data['questions'] are what was stored in DB.
+                
+                # Let's iterate through candidate_data['questions'] to find a match if possible, 
+                # or just list what we have.
+                
+                # Simplified approach: Just dump the question text.
+                # If we can find the answer, great.
+                
+                # Let's assume the question object has an 'id'.
+                q_id = str(question.get('id', ''))
+                result_data = candidate_data.get('questions', {}).get(q_id, {})
+                candidate_answer = result_data.get('data', {}).get('answer', 'No Answer')
+                
+                prompt += f"""
+                Question {i} ({q_type}):
+                - Question: {question_text}
+                - Candidate Answer: {candidate_answer}
+                """
         
         prompt += """
         
@@ -672,15 +741,28 @@ class LLMPerformanceAnalyzer:
     def _analyze_difficulty_performance(self, candidate_data: Dict, test_questions: List[Dict]) -> Dict:
         """Analyze performance by difficulty level"""
         
+        flat_questions = self._extract_questions(test_questions)
+        
         difficulty_stats = {
             "easy": {"total": 0, "solved": 0},
             "medium": {"total": 0, "solved": 0},
             "hard": {"total": 0, "solved": 0}
         }
         
-        for question in test_questions:
-            question_id = f"{question.get('contestId', '')}{question.get('index', '')}"
-            rating = question.get('rating', 0)
+        for question in flat_questions:
+            # Determine question ID and rating
+            if question.get('type') == 'codeforces' or ('contestId' in question and 'index' in question):
+                q_data = question.get('data', question)
+                question_id = f"{q_data.get('contestId', '')}{q_data.get('index', '')}"
+                rating = q_data.get('rating', 0)
+            else:
+                # Manual question - assume medium if not specified
+                # Use ID or index fallback logic if needed, but here we just need to check if solved
+                question_id = str(question.get('id', ''))
+                rating = 1400 # Default to medium
+            
+            # Check if solved
+            # Try exact ID match first
             solved = candidate_data.get('questions', {}).get(question_id, {}).get('solved', False)
             
             if rating <= 1200:
@@ -705,7 +787,8 @@ class LLMPerformanceAnalyzer:
     def _calculate_performance_score(self, candidate_data: Dict, test_questions: List[Dict]) -> int:
         """Calculate overall performance score (0-100)"""
         
-        total_questions = len(test_questions)
+        flat_questions = self._extract_questions(test_questions)
+        total_questions = len(flat_questions)
         solved_questions = candidate_data.get('total_solved', 0)
         
         if total_questions == 0:
@@ -716,9 +799,15 @@ class LLMPerformanceAnalyzer:
         
         # Bonus for solving harder problems
         difficulty_bonus = 0
-        for question in test_questions:
-            question_id = f"{question.get('contestId', '')}{question.get('index', '')}"
-            rating = question.get('rating', 0)
+        for question in flat_questions:
+            if question.get('type') == 'codeforces' or ('contestId' in question and 'index' in question):
+                q_data = question.get('data', question)
+                question_id = f"{q_data.get('contestId', '')}{q_data.get('index', '')}"
+                rating = q_data.get('rating', 0)
+            else:
+                question_id = str(question.get('id', ''))
+                rating = 1400 # Default medium
+            
             solved = candidate_data.get('questions', {}).get(question_id, {}).get('solved', False)
             
             if solved:
@@ -772,11 +861,18 @@ class LLMPerformanceAnalyzer:
     def _analyze_tag_performance(self, candidate_data: Dict, test_questions: List[Dict]) -> Dict:
         """Analyze performance by problem tags"""
         
+        flat_questions = self._extract_questions(test_questions)
         tag_stats = {}
         
-        for question in test_questions:
-            question_id = f"{question.get('contestId', '')}{question.get('index', '')}"
-            tags = question.get('tags', [])
+        for question in flat_questions:
+            if question.get('type') == 'codeforces' or ('contestId' in question and 'index' in question):
+                q_data = question.get('data', question)
+                question_id = f"{q_data.get('contestId', '')}{q_data.get('index', '')}"
+                tags = q_data.get('tags', [])
+            else:
+                question_id = str(question.get('id', ''))
+                tags = ['general'] # Default tag for manual questions
+            
             solved = candidate_data.get('questions', {}).get(question_id, {}).get('solved', False)
             
             for tag in tags:

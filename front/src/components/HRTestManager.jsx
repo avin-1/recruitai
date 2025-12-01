@@ -1,58 +1,58 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
-  CardTitle 
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle
 } from '@/components/ui/card';
-import { 
-  Button 
+import {
+  Button
 } from '@/components/ui/button';
-import { 
-  Input 
+import {
+  Input
 } from '@/components/ui/input';
-import { 
-  Label 
+import {
+  Label
 } from '@/components/ui/label';
-import { 
-  Textarea 
+import {
+  Textarea
 } from '@/components/ui/textarea';
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from '@/components/ui/select';
-import { 
-  Checkbox 
+import {
+  Checkbox
 } from '@/components/ui/checkbox';
-import { 
-  Badge 
+import {
+  Badge
 } from '@/components/ui/badge';
-import { 
-  Alert, 
-  AlertDescription 
+import {
+  Alert,
+  AlertDescription
 } from '@/components/ui/alert';
-import { 
-  Tabs, 
-  TabsContent, 
-  TabsList, 
-  TabsTrigger 
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
 } from '@/components/ui/tabs';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from '@/components/ui/table';
-import { 
-  Loader2, 
-  Plus, 
-  Send, 
-  Download, 
+import {
+  Loader2,
+  Plus,
+  Send,
+  Download,
   RefreshCw,
   CheckCircle,
   XCircle,
@@ -81,7 +81,7 @@ const HRTestManager = () => {
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [removedEmails, setRemovedEmails] = useState([]);
   const [testPlatforms, setTestPlatforms] = useState({}); // Cache platform types for tests
-  
+
   // Test creation form
   const [testForm, setTestForm] = useState({
     test_name: '',
@@ -92,13 +92,113 @@ const HRTestManager = () => {
     platform_type: 'codeforces',
     custom_platform_name: ''
   });
-  
+
+  // State for multi-section tests
+  const [sections, setSections] = useState([
+    { id: 1, name: 'Aptitude', questions: [] },
+    { id: 2, name: 'Technical', questions: [] }
+  ]);
+  const [manualQuestion, setManualQuestion] = useState({
+    question: '',
+    options: ['', '', '', ''],
+    correct_answer: '',
+    explanation: ''
+  });
+
+  // Chat State
+  const [chatInput, setChatInput] = useState('');
+  const [chatMessages, setChatMessages] = useState([
+    { role: 'system', content: 'Hello! I can help you generate test questions. Try asking "Generate 5 aptitude questions".' }
+  ]);
+  const [chatLoading, setChatLoading] = useState(false);
+
   // Filters
   const [filters, setFilters] = useState({
     difficulty_min: '',
     difficulty_max: '',
     tags: []
   });
+
+  // Section Handlers
+  const addSection = () => {
+    const newId = sections.length > 0 ? Math.max(...sections.map(s => s.id)) + 1 : 1;
+    setSections([...sections, { id: newId, name: `Section ${newId}`, questions: [] }]);
+  };
+
+  const removeSection = (id) => {
+    if (sections.length <= 1) { alert("At least one section is required."); return; }
+    setSections(sections.filter(s => s.id !== id));
+  };
+
+  const updateSectionName = (id, name) => {
+    setSections(sections.map(s => s.id === id ? { ...s, name } : s));
+  };
+
+  const addManualQuestion = (sectionId) => {
+    setSections(sections.map(s => {
+      if (s.id === sectionId) {
+        return { ...s, questions: [...s.questions, manualQuestion] };
+      }
+      return s;
+    }));
+    setManualQuestion({ question: '', options: ['', '', '', ''], correct_answer: '', explanation: '' });
+  };
+
+  const removeQuestion = (sectionId, qIdx) => {
+    setSections(sections.map(s => {
+      if (s.id === sectionId) {
+        return { ...s, questions: s.questions.filter((_, i) => i !== qIdx) };
+      }
+      return s;
+    }));
+  };
+
+  // Chat Handlers
+  const handleChatSubmit = async (e) => {
+    e.preventDefault();
+    if (!chatInput.trim()) return;
+
+    const userMsg = chatInput;
+    setChatMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+    setChatInput('');
+    setChatLoading(true);
+
+    try {
+      // Simple parsing to guess intent
+      const topic = userMsg;
+      const count = userMsg.match(/\d+/)?.[0] || 5;
+
+      const response = await fetch(`${API_BASE_URL}/tests/generate-questions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic, count: parseInt(count), difficulty: 'medium' })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setChatMessages(prev => [...prev, {
+          role: 'system',
+          content: `Here are ${data.questions.length} questions generated for you.`,
+          questions: data.questions
+        }]);
+      } else {
+        setChatMessages(prev => [...prev, { role: 'system', content: 'Sorry, I failed to generate questions. ' + data.error }]);
+      }
+    } catch (err) {
+      setChatMessages(prev => [...prev, { role: 'system', content: 'Network error.' }]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const addQuestionToSection = (question, sectionId) => {
+    setSections(sections.map(s => {
+      if (s.id.toString() === sectionId.toString()) {
+        return { ...s, questions: [...s.questions, question] };
+      }
+      return s;
+    }));
+  };
 
   const availableTags = [
     'implementation', 'math', 'greedy', 'dp', 'data structures',
@@ -168,7 +268,7 @@ const HRTestManager = () => {
 
       const response = await fetch(`${API_BASE_URL}/tests/problems?${params}`);
       const data = await response.json();
-      
+
       if (data.success) {
         setProblems(data.problems);
       } else {
@@ -186,7 +286,7 @@ const HRTestManager = () => {
     if (checked) {
       setSelectedProblems([...selectedProblems, problem]);
     } else {
-      setSelectedProblems(selectedProblems.filter(p => 
+      setSelectedProblems(selectedProblems.filter(p =>
         p.contestId !== problem.contestId || p.index !== problem.index
       ));
     }
@@ -210,25 +310,38 @@ const HRTestManager = () => {
 
     setLoading(true);
     try {
+      // Prepare payload based on platform type
+      const payload = {
+        ...testForm,
+        questions: testForm.platform_type === 'codeforces' ? selectedProblems : sections
+      };
+
       const response = await fetch(`${API_BASE_URL}/tests/create`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          test_name: testForm.test_name,
-          test_description: testForm.test_description,
-          questions: testForm.platform_type === 'codeforces' ? selectedProblems : [],
-          platform_type: testForm.platform_type,
-          custom_platform_name: testForm.platform_type === 'custom' ? testForm.custom_platform_name : null
-        })
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
+
       if (data.success) {
         alert('Test created successfully!');
-        setTestForm({ test_name: '', test_description: '', difficulty_min: '', difficulty_max: '', tags: [], platform_type: 'codeforces', custom_platform_name: '' });
+        setTestForm({
+          test_name: '',
+          test_description: '',
+          difficulty_min: '',
+          difficulty_max: '',
+          tags: [],
+          platform_type: 'codeforces',
+          custom_platform_name: ''
+        });
         setSelectedProblems([]);
+        setSections([
+          { id: 1, name: 'Aptitude', questions: [] },
+          { id: 2, name: 'Technical', questions: [] }
+        ]);
         loadTests();
         setActiveTab('manage');
       } else {
@@ -245,7 +358,7 @@ const HRTestManager = () => {
   const sendTestInvitations = async (testId) => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     const testLink = `${origin}/test/${testId}`;
-    
+
     try {
       const response = await fetch(`${API_BASE_URL}/tests/${testId}/send-invitations`, {
         method: 'POST',
@@ -282,7 +395,7 @@ const HRTestManager = () => {
       const fetchResponse = await fetch(`${API_BASE_URL}/tests/${testId}/fetch-results`, {
         method: 'POST'
       });
-      
+
       const fetchData = await fetchResponse.json();
       if (fetchData.success) {
         const summary = fetchData.summary || {};
@@ -316,7 +429,7 @@ const HRTestManager = () => {
       const fetchResponse = await fetch(`${API_BASE_URL}/tests/${testId}/fetch-results`, {
         method: 'POST'
       });
-      
+
       const fetchData = await fetchResponse.json();
       if (!fetchData.success) {
         alert('Error fetching results: ' + fetchData.error);
@@ -326,7 +439,7 @@ const HRTestManager = () => {
       // Then get the results
       const resultsResponse = await fetch(`${API_BASE_URL}/tests/${testId}/results`);
       const resultsData = await resultsResponse.json();
-      
+
       if (resultsData.success) {
         setTestResults(resultsData.results);
         setRemovedEmails([]);
@@ -370,18 +483,18 @@ const HRTestManager = () => {
   const getCandidateAnalysis = async (candidate, testId) => {
     setAnalysisLoading(true);
     setSelectedCandidate(candidate);
-    
+
     try {
       // Use the bulk analysis endpoint
       const response = await fetch(`${API_BASE_URL}/tests/${testId}/candidate-analysis`);
       const data = await response.json();
-      
+
       if (data.success) {
         // Find the analysis for this specific candidate
-        const candidateAnalysis = data.analyses.find(analysis => 
+        const candidateAnalysis = data.analyses.find(analysis =>
           analysis.candidate_info.username === candidate.username
         );
-        
+
         if (candidateAnalysis) {
           setCandidateAnalysis(candidateAnalysis);
           setShowAnalysisModal(true);
@@ -427,66 +540,82 @@ const HRTestManager = () => {
           <TabsTrigger value="results">View Results</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="create" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Create New Test</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="test_name">Test Name</Label>
-                  <Input
-                    id="test_name"
-                    value={testForm.test_name}
-                    onChange={(e) => setTestForm({...testForm, test_name: e.target.value})}
-                    placeholder="Enter test name"
-                  />
+        <TabsContent value="create" className="space-y-6 h-[calc(100vh-200px)] flex gap-6">
+          {/* Left Panel: Test Configuration */}
+          <div className="flex-1 flex flex-col gap-6 overflow-y-auto pr-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Create New Test</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="test_name">Test Name</Label>
+                    <Input
+                      id="test_name"
+                      value={testForm.test_name}
+                      onChange={(e) => setTestForm({ ...testForm, test_name: e.target.value })}
+                      placeholder="Enter test name"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="test_description">Description</Label>
+                    <Textarea
+                      id="test_description"
+                      value={testForm.test_description}
+                      onChange={(e) => setTestForm({ ...testForm, test_description: e.target.value })}
+                      placeholder="Enter test description"
+                    />
+                  </div>
                 </div>
+
                 <div>
-                  <Label htmlFor="test_description">Description</Label>
-                  <Textarea
-                    id="test_description"
-                    value={testForm.test_description}
-                    onChange={(e) => setTestForm({...testForm, test_description: e.target.value})}
-                    placeholder="Enter test description"
-                  />
+                  <Label htmlFor="platform_type">Test Platform</Label>
+                  <Select
+                    value={testForm.platform_type}
+                    onValueChange={(value) => {
+                      setTestForm({ ...testForm, platform_type: value, custom_platform_name: '' });
+                      if (value === 'codeforces') {
+                        setSelectedProblems([]);
+                      } else {
+                        setSections([
+                          { id: 1, name: 'Aptitude', questions: [] },
+                          { id: 2, name: 'Technical', questions: [] }
+                        ]);
+                      }
+                    }}
+                  >
+                    <SelectTrigger id="platform_type">
+                      <SelectValue placeholder="Select platform" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="codeforces">Codeforces (Coding Only)</SelectItem>
+                      <SelectItem value="custom">Custom (Multi-Section)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              </div>
 
-              <div>
-                <Label htmlFor="platform_type">Test Platform</Label>
-                <Select
-                  value={testForm.platform_type}
-                  onValueChange={(value) => {
-                    setTestForm({...testForm, platform_type: value, custom_platform_name: ''});
-                    setSelectedProblems([]);
-                  }}
-                >
-                  <SelectTrigger id="platform_type">
-                    <SelectValue placeholder="Select platform" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="codeforces">Codeforces</SelectItem>
-                    <SelectItem value="custom">Custom Platform</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                {testForm.platform_type === 'custom' && (
+                  <div>
+                    <Label htmlFor="custom_platform_name">Platform Name</Label>
+                    <Input
+                      id="custom_platform_name"
+                      value={testForm.custom_platform_name}
+                      onChange={(e) => setTestForm({ ...testForm, custom_platform_name: e.target.value })}
+                      placeholder="e.g., Internal Assessment"
+                    />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-              {testForm.platform_type === 'custom' && (
-                <div>
-                  <Label htmlFor="custom_platform_name">Custom Platform Name</Label>
-                  <Input
-                    id="custom_platform_name"
-                    value={testForm.custom_platform_name}
-                    onChange={(e) => setTestForm({...testForm, custom_platform_name: e.target.value})}
-                    placeholder="e.g., LeetCode, HackerRank, Your Platform"
-                  />
-                </div>
-              )}
-
-              {testForm.platform_type === 'codeforces' && (
-                <>
+            {/* Codeforces Specific UI */}
+            {testForm.platform_type === 'codeforces' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Select Codeforces Problems</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
                   <div className="grid grid-cols-3 gap-4">
                     <div>
                       <Label htmlFor="difficulty_min">Min Difficulty</Label>
@@ -494,7 +623,7 @@ const HRTestManager = () => {
                         id="difficulty_min"
                         type="number"
                         value={filters.difficulty_min}
-                        onChange={(e) => setFilters({...filters, difficulty_min: e.target.value})}
+                        onChange={(e) => setFilters({ ...filters, difficulty_min: e.target.value })}
                         placeholder="800"
                       />
                     </div>
@@ -504,7 +633,7 @@ const HRTestManager = () => {
                         id="difficulty_max"
                         type="number"
                         value={filters.difficulty_max}
-                        onChange={(e) => setFilters({...filters, difficulty_max: e.target.value})}
+                        onChange={(e) => setFilters({ ...filters, difficulty_max: e.target.value })}
                         placeholder="2000"
                       />
                     </div>
@@ -515,134 +644,325 @@ const HRTestManager = () => {
                     </div>
                   </div>
 
-                  <div>
-                    <Label>Tags (Optional)</Label>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {availableTags.map(tag => (
-                        <div key={tag} className="flex items-center space-x-2">
+                  {/* Problem List */}
+                  {problems.length > 0 && (
+                    <div className="space-y-2 max-h-96 overflow-y-auto border rounded p-2">
+                      {problems.map((problem, index) => (
+                        <div key={index} className="flex items-center space-x-4 p-3 border rounded-lg">
                           <Checkbox
-                            id={tag}
-                            checked={filters.tags.includes(tag)}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setFilters({...filters, tags: [...filters.tags, tag]});
-                              } else {
-                                setFilters({...filters, tags: filters.tags.filter(t => t !== tag)});
-                              }
-                            }}
+                            checked={selectedProblems.some(p =>
+                              p.contestId === problem.contestId && p.index === problem.index
+                            )}
+                            onCheckedChange={(checked) => handleProblemSelect(problem, checked)}
                           />
-                          <Label htmlFor={tag} className="text-sm">{tag}</Label>
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2">
+                              <span className="font-mono text-sm">{formatProblemId(problem)}</span>
+                              {problem.rating && (
+                                <Badge className={getDifficultyColor(problem.rating)}>{problem.rating}</Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-600 mt-1">{problem.name}</p>
+                          </div>
                         </div>
                       ))}
                     </div>
-                  </div>
-                </>
-              )}
+                  )}
 
-              {testForm.platform_type === 'custom' && (
-                <Alert>
-                  <AlertDescription>
-                    You've selected a custom platform. Test creation will proceed without Codeforces-specific features.
-                    Candidates will receive the test link but results tracking will be handled externally.
-                  </AlertDescription>
-                </Alert>
-              )}
-            </CardContent>
-          </Card>
+                  <Button
+                    onClick={createTest}
+                    disabled={loading || !testForm.test_name || selectedProblems.length === 0}
+                    className="w-full"
+                  >
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create Codeforces Test'}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
 
-          {testForm.platform_type === 'codeforces' && problems.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Available Problems ({problems.length})</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {problems.map((problem, index) => (
-                    <div key={index} className="flex items-center space-x-4 p-3 border rounded-lg">
-                      <Checkbox
-                        checked={selectedProblems.some(p => 
-                          p.contestId === problem.contestId && p.index === problem.index
-                        )}
-                        onCheckedChange={(checked) => handleProblemSelect(problem, checked)}
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2">
-                          <span className="font-mono text-sm">
-                            {formatProblemId(problem)}
-                          </span>
-                          {problem.rating && (
-                            <Badge className={getDifficultyColor(problem.rating)}>
-                              {problem.rating}
-                            </Badge>
-                          )}
+            {/* Custom Platform Multi-Section UI */}
+            {testForm.platform_type === 'custom' && (
+              <div className="space-y-6">
+                {/* Section Management */}
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <CardTitle>Test Sections</CardTitle>
+                    <Button size="sm" variant="outline" onClick={addSection}>
+                      <Plus className="h-4 w-4 mr-1" /> Add Section
+                    </Button>
+                  </CardHeader>
+                  <CardContent>
+                    <Tabs defaultValue={sections[0]?.id.toString()} className="w-full">
+                      <TabsList className="flex flex-wrap h-auto">
+                        {sections.map(section => (
+                          <TabsTrigger key={section.id} value={section.id.toString()}>
+                            {section.name} ({section.questions.length})
+                          </TabsTrigger>
+                        ))}
+                      </TabsList>
+
+                      {sections.map(section => (
+                        <TabsContent key={section.id} value={section.id.toString()} className="space-y-4">
+                          <div className="flex items-center gap-2 mb-4">
+                            <Input
+                              value={section.name}
+                              onChange={(e) => updateSectionName(section.id, e.target.value)}
+                              className="max-w-xs font-semibold"
+                            />
+                            <Button variant="ghost" size="sm" className="text-red-500" onClick={() => removeSection(section.id)}>
+                              <XCircle className="h-4 w-4" />
+                            </Button>
+                          </div>
+
+                          {/* Questions List */}
+                          <div className="space-y-3">
+                            {section.questions.length === 0 ? (
+                              <div className="text-center p-8 border-2 border-dashed rounded-lg text-gray-400">
+                                No questions in this section yet. Add manually or ask AI.
+                              </div>
+                            ) : (
+                              section.questions.map((q, qIdx) => (
+                                <Card key={qIdx} className="bg-gray-50">
+                                  <CardContent className="p-4 relative">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="absolute top-2 right-2 text-red-400 hover:text-red-600"
+                                      onClick={() => removeQuestion(section.id, qIdx)}
+                                    >
+                                      <XCircle className="h-4 w-4" />
+                                    </Button>
+                                    <p className="font-medium mb-2">{qIdx + 1}. {q.question}</p>
+                                    {q.type === 'codeforces' ? (
+                                      <div className="text-sm text-blue-600">
+                                        Codeforces Problem: <a href={q.problem_link} target="_blank" rel="noopener noreferrer" className="underline">{q.data.name}</a>
+                                      </div>
+                                    ) : (
+                                      <div className="grid grid-cols-2 gap-2 text-sm">
+                                        {q.options.map((opt, oIdx) => (
+                                          <div key={oIdx} className={`p-2 rounded ${opt === q.correct_answer ? 'bg-green-100 border-green-200 border' : 'bg-white border'}`}>
+                                            {opt}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </CardContent>
+                                </Card>
+                              ))
+                            )}
+                          </div>
+
+                          {/* Manual Question Add */}
+                          <div className="mt-4 p-4 border rounded-lg bg-white">
+                            <h4 className="font-medium mb-3 text-sm text-gray-700">Add Manual Question</h4>
+                            <div className="space-y-3">
+                              <Input
+                                placeholder="Question text"
+                                value={manualQuestion.question}
+                                onChange={e => setManualQuestion({ ...manualQuestion, question: e.target.value })}
+                              />
+                              <div className="grid grid-cols-2 gap-2">
+                                {manualQuestion.options.map((opt, idx) => (
+                                  <Input
+                                    key={idx}
+                                    placeholder={`Option ${idx + 1}`}
+                                    value={opt}
+                                    onChange={e => {
+                                      const newOpts = [...manualQuestion.options];
+                                      newOpts[idx] = e.target.value;
+                                      setManualQuestion({ ...manualQuestion, options: newOpts });
+                                    }}
+                                  />
+                                ))}
+                              </div>
+                              <Select
+                                value={manualQuestion.correct_answer}
+                                onValueChange={val => setManualQuestion({ ...manualQuestion, correct_answer: val })}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select Correct Answer" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {manualQuestion.options.map((opt, idx) => (
+                                    opt && <SelectItem key={idx} value={opt}>{opt}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <Button onClick={() => addManualQuestion(section.id)} disabled={!manualQuestion.question || !manualQuestion.correct_answer}>
+                                <Plus className="h-4 w-4 mr-1" /> Add Question
+                              </Button>
+                            </div>
+                          </div>
+                        </TabsContent>
+                      ))}
+                    </Tabs>
+                  </CardContent>
+                </Card>
+
+                <Button
+                  onClick={createTest}
+                  disabled={loading || !testForm.test_name || sections.every(s => s.questions.length === 0)}
+                  className="w-full py-6 text-lg"
+                >
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create Custom Test'}
+                </Button>
+
+                {/* Codeforces Integration for Custom Tests */}
+                <Card className="border-t-4 border-t-purple-500">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Target className="h-5 w-5 text-purple-600" />
+                      Add Codeforces Problems
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <Label htmlFor="cf_min">Min Rating</Label>
+                        <Input
+                          id="cf_min"
+                          type="number"
+                          value={filters.difficulty_min}
+                          onChange={(e) => setFilters({ ...filters, difficulty_min: e.target.value })}
+                          placeholder="800"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="cf_max">Max Rating</Label>
+                        <Input
+                          id="cf_max"
+                          type="number"
+                          value={filters.difficulty_max}
+                          onChange={(e) => setFilters({ ...filters, difficulty_max: e.target.value })}
+                          placeholder="2000"
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <Button onClick={fetchProblems} disabled={loading} variant="secondary" className="w-full">
+                          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Search Problems'}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {problems.length > 0 && (
+                      <div className="space-y-2 max-h-80 overflow-y-auto border rounded p-2 bg-gray-50">
+                        {problems.map((problem, index) => (
+                          <div key={index} className="flex items-center justify-between p-3 border rounded-lg bg-white shadow-sm">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-2">
+                                <span className="font-mono text-xs font-bold text-gray-500">{formatProblemId(problem)}</span>
+                                <span className="font-medium text-sm">{problem.name}</span>
+                                {problem.rating && (
+                                  <Badge variant="outline" className={`text-xs ${getDifficultyColor(problem.rating)}`}>
+                                    {problem.rating}
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="flex gap-1 mt-1">
+                                {problem.tags?.slice(0, 2).map(tag => (
+                                  <span key={tag} className="text-[10px] bg-gray-100 px-1 rounded text-gray-600">{tag}</span>
+                                ))}
+                              </div>
+                            </div>
+
+                            <Select onValueChange={(sectionId) => {
+                              const cfQuestion = {
+                                type: 'codeforces',
+                                question: `[Codeforces ${formatProblemId(problem)}] ${problem.name}`,
+                                problem_link: `https://codeforces.com/problemset/problem/${problem.contestId}/${problem.index}`,
+                                data: problem,
+                                options: [],
+                                correct_answer: '',
+                                explanation: `Solve this problem on Codeforces: ${problem.name}`
+                              };
+                              addQuestionToSection(cfQuestion, sectionId);
+                            }}>
+                              <SelectTrigger className="h-8 w-32 text-xs">
+                                <SelectValue placeholder="Add to..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {sections.map(s => (
+                                  <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </div>
+
+          {/* Right Panel: AI Chat Sidebar */}
+          {testForm.platform_type === 'custom' && (
+            <div className="w-96 flex flex-col h-full">
+              <Card className="flex-1 flex flex-col h-full border-l-4 border-l-blue-500 shadow-xl">
+                <CardHeader className="bg-blue-50 py-3">
+                  <CardTitle className="flex items-center gap-2 text-blue-700">
+                    <Brain className="h-5 w-5" /> AI Question Generator
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50">
+                    {chatMessages.map((msg, idx) => (
+                      <div key={idx} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                        <div className={`max-w-[90%] p-3 rounded-2xl text-sm ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white border shadow-sm rounded-bl-none'
+                          }`}>
+                          {msg.content}
                         </div>
-                        <p className="text-sm text-gray-600 mt-1">{problem.name}</p>
-                        {problem.tags && (
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {problem.tags.slice(0, 3).map(tag => (
-                              <Badge key={tag} variant="outline" className="text-xs">
-                                {tag}
-                              </Badge>
+
+                        {/* Render Generated Questions */}
+                        {msg.questions && (
+                          <div className="mt-2 w-full space-y-2">
+                            {msg.questions.map((q, qIdx) => (
+                              <div key={qIdx} className="bg-white border rounded-lg p-3 shadow-sm text-xs">
+                                <p className="font-medium mb-1">{q.question}</p>
+                                <div className="flex justify-end mt-2">
+                                  <Select onValueChange={(sectionId) => addQuestionToSection(q, sectionId)}>
+                                    <SelectTrigger className="h-7 text-xs w-32">
+                                      <SelectValue placeholder="Add to..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {sections.map(s => (
+                                        <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
                             ))}
                           </div>
                         )}
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                    ))}
+                    {chatLoading && (
+                      <div className="flex items-center gap-2 text-gray-400 text-sm p-2">
+                        <Loader2 className="h-4 w-4 animate-spin" /> AI is thinking...
+                      </div>
+                    )}
+                  </div>
 
-          {testForm.platform_type === 'codeforces' && selectedProblems.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Selected Problems ({selectedProblems.length})</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {selectedProblems.map((problem, index) => (
-                    <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                      <span className="font-mono text-sm">{formatProblemId(problem)}</span>
-                      <span className="text-sm text-gray-600">{problem.name}</span>
-                    </div>
-                  ))}
-                </div>
-                <Button 
-                  onClick={createTest} 
-                  disabled={loading || !testForm.test_name}
-                  className="w-full mt-4"
-                >
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create Test'}
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {testForm.platform_type === 'custom' && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Custom Platform Test</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Alert>
-                  <AlertDescription>
-                    You've selected a custom platform. Test creation will proceed without Codeforces-specific features.
-                    Candidates will receive the test link but results tracking will be handled externally.
-                  </AlertDescription>
-                </Alert>
-                <Button 
-                  onClick={createTest} 
-                  disabled={loading || !testForm.test_name || !testForm.custom_platform_name}
-                  className="w-full mt-4"
-                >
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create Test'}
-                </Button>
-              </CardContent>
-            </Card>
+                  <div className="p-3 bg-white border-t">
+                    <form onSubmit={handleChatSubmit} className="flex gap-2">
+                      <Input
+                        value={chatInput}
+                        onChange={e => setChatInput(e.target.value)}
+                        placeholder="e.g., '5 hard python questions'"
+                        className="flex-1"
+                      />
+                      <Button type="submit" size="icon" disabled={chatLoading || !chatInput.trim()}>
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    </form>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           )}
         </TabsContent>
-
         <TabsContent value="manage" className="space-y-6">
           <Card>
             <CardHeader>
@@ -671,7 +991,7 @@ const HRTestManager = () => {
                     const customPlatformName = test.custom_platform_name || test[5];
                     const createdDate = test.created_date || test[6] || test[4];
                     const status = test.status || test[7] || test[5] || 'active';
-                    
+
                     return (
                       <TableRow key={testId}>
                         <TableCell className="font-medium">{testName}</TableCell>
@@ -774,7 +1094,7 @@ const HRTestManager = () => {
                             <p className="text-sm text-gray-600">Problems Solved</p>
                           </div>
                         </div>
-                        
+
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                           {Object.entries(result.questions).map(([questionId, questionData]) => (
                             <div key={questionId} className="flex items-center space-x-2 p-2 border rounded">
@@ -787,7 +1107,7 @@ const HRTestManager = () => {
                             </div>
                           ))}
                         </div>
-                        
+
                         <div className="mt-4 flex justify-end gap-2">
                           <Button
                             variant="destructive"
@@ -879,14 +1199,14 @@ const HRTestManager = () => {
                       </span>
                     </div>
                   </div>
-                  
+
                   <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
-                    <div 
+                    <div
                       className="bg-gradient-to-r from-blue-500 to-purple-500 h-3 rounded-full transition-all duration-500"
                       style={{ width: `${candidateAnalysis.performance_score}%` }}
                     ></div>
                   </div>
-                  
+
                   <div className="flex items-center space-x-2">
                     <Target className="h-4 w-4 text-gray-600" />
                     <span className="text-sm text-gray-600">
@@ -1017,7 +1337,7 @@ const HRTestManager = () => {
                     <div className="bg-orange-50 rounded-lg p-4">
                       <h4 className="font-medium text-orange-800 mb-1">Avg Time</h4>
                       <p className="text-sm text-orange-600">
-                        {candidateAnalysis.codeforces_data.average_time ? 
+                        {candidateAnalysis.codeforces_data.average_time ?
                           `${(candidateAnalysis.codeforces_data.average_time / 1000).toFixed(2)}s` : 'N/A'}
                       </p>
                     </div>
