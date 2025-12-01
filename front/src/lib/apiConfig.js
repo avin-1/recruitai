@@ -23,7 +23,7 @@ export const SHORTLISTING_API_BASE = buildBase(
 
 export const INTERVIEW_API_BASE = buildBase(
   import.meta.env.VITE_INTERVIEW_API_URL,
-  5001
+  5002
 );
 
 export const CORE_API_BASE = buildBase(

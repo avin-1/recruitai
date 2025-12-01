@@ -28,3 +28,6 @@ typing-inspection==0.4.1
 typing_extensions==4.15.0
 watchdog==6.0.0
 waitress
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib

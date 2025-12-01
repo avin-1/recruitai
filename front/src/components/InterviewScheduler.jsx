@@ -149,51 +149,83 @@ const InterviewScheduler = () => {
     }
   };
 
-  const scheduleSelected = () => {
-    if (!selected) {
-      alert('Please select a time slot first');
+  const scheduleSelected = async () => {
+    // Determine which slots to schedule:
+    // 1. If checkboxes are checked in "Availability", use those.
+    // 2. If no checkboxes, check if a "Proposed Slot" is selected.
+    const checkedIndices = Object.keys(selectedMap).filter(k => selectedMap[k]);
+    let slotsToSchedule = [];
+
+    if (checkedIndices.length > 0) {
+      slotsToSchedule = checkedIndices.map(idx => availability[idx]);
+    } else if (selected) {
+      slotsToSchedule = [selected];
+    }
+
+    if (slotsToSchedule.length === 0) {
+      alert('Please select at least one time slot (via checkboxes or proposal selection).');
       return;
     }
-    scheduleSlot(selected);
+
+    // Ask for meeting link once for all
+    const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const link = window.prompt(`Scheduling ${slotsToSchedule.length} slot(s). Enter meeting link (leave blank to auto-create Google Meet):`, '');
+    if (link === null) return; // User cancelled
+
+    setLoading(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    try {
+      for (const slot of slotsToSchedule) {
+        const payload = {
+          start: slot.start,
+          end: slot.end,
+          hr_email: hrEmail,
+          meeting_link: link || '',
+          timezone: userTimezone
+        };
+
+        try {
+          const res = await fetch(`${INTERVIEW_API_BASE}/interviews/schedule`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          if (data.success) {
+            successCount++;
+          } else {
+            console.error('Failed to schedule slot:', slot, data.error);
+            failCount++;
+          }
+        } catch (err) {
+          console.error('Network error scheduling slot:', slot, err);
+          failCount++;
+        }
+      }
+
+      const summary = `Scheduled: ${successCount}\nFailed: ${failCount}`;
+      alert(summary);
+      if (successCount > 0) {
+        setMessages(prev => [...prev, { role: 'system', content: `✓ ${summary}` }]);
+        // Clear selections
+        setSelected(null);
+        setSelectedMap({});
+      }
+
+    } catch (err) {
+      alert('Unexpected error: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const toggleSlot = (idx) => {
     setSelectedMap(prev => ({ ...prev, [idx]: !prev[idx] }));
   };
+  // createEventsForSelected removed as it is now redundant
 
-  const createEventsForSelected = async () => {
-    const selectedSlots = availability.filter((_, idx) => selectedMap[idx]);
-    if (selectedSlots.length === 0) { alert('Select at least one slot.'); return; }
-    setLoading(true);
-    try {
-      const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      for (const slot of selectedSlots) {
-        const res = await fetch(`${INTERVIEW_API_BASE}/interviews/create_event`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            hr_email: hrEmail,
-            start: slot.start,
-            end: slot.end,
-            attendees: emails,
-            title: 'Interview',
-            timezone: userTimezone,
-            create_meet: true
-          })
-        });
-        const data = await res.json();
-        if (!data.success) {
-          alert('Failed to create event: ' + (data.error || 'Unknown error'));
-          return;
-        }
-      }
-      alert('Event(s) created successfully.');
-    } catch (err) {
-      alert('Error creating events: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -304,8 +336,13 @@ const InterviewScheduler = () => {
               </div>
             </div>
             <div className="mt-4 flex gap-2 flex-wrap">
-              <Button onClick={scheduleSelected} disabled={!selected || loading}>Schedule Selected</Button>
-              <Button onClick={createEventsForSelected} disabled={loading}>Create Calendar Event(s)</Button>
+              <Button
+                onClick={scheduleSelected}
+                disabled={loading || (!selected && Object.keys(selectedMap).filter(k => selectedMap[k]).length === 0)}
+              >
+                Schedule Selected
+              </Button>
+              {/* Create Calendar Event(s) button removed */}
               <Button
                 variant="outline"
                 onClick={() => navigate('/interview-candidates')}

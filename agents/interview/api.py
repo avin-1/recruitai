@@ -314,6 +314,43 @@ def propose_interview_slots():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+def create_google_calendar_event_logic(hr_email, event_body, conference_data=None):
+    """
+    Helper to create a Google Calendar event using Service Account (primary) or OAuth (fallback).
+    Returns the created event object or raises an exception.
+    """
+    # Try service account first
+    try:
+        if not GOOGLE_SERVICE_ACCOUNT_FILE:
+            raise Exception('Service account not configured')
+        
+        creds = service_account.Credentials.from_service_account_file(
+            GOOGLE_SERVICE_ACCOUNT_FILE,
+            scopes=SCOPES,
+            subject=hr_email
+        )
+        service = build('calendar', 'v3', credentials=creds)
+        insert_kwargs = {'calendarId': hr_email, 'body': event_body}
+        if conference_data:
+            event_body['conferenceData'] = conference_data
+            insert_kwargs['conferenceDataVersion'] = 1
+        
+        return service.events().insert(**insert_kwargs).execute()
+        
+    except Exception as sa_err:
+        logger.warning(f"Service account calendar creation failed: {sa_err}. Trying OAuth fallback...")
+        # OAuth fallback on primary calendar
+        try:
+            oauth_service = build_calendar_service_oauth()
+            insert_kwargs = {'calendarId': 'primary', 'body': event_body}
+            if conference_data:
+                event_body['conferenceData'] = conference_data
+                insert_kwargs['conferenceDataVersion'] = 1
+            
+            return oauth_service.events().insert(**insert_kwargs).execute()
+        except Exception as oauth_err:
+            raise Exception(f"Both Service Account and OAuth failed. SA: {sa_err}, OAuth: {oauth_err}")
+
 @app.route('/api/interviews/schedule', methods=['POST'])
 def schedule_interviews():
     try:
@@ -329,11 +366,9 @@ def schedule_interviews():
 
         # Always create calendar event (use provided link or auto-create Meet)
         meeting_link = meeting_link_input.strip()
-        should_create_meet = not meeting_link  # Only create Meet if no link provided
         
         try:
-            # Prepare event body as in create_event
-            # Parse times and convert to tz
+            # Prepare event body
             start_utc = start.replace('Z', '+00:00') if start.endswith('Z') else start
             end_utc = end.replace('Z', '+00:00') if end.endswith('Z') else end
             dt_start = datetime.datetime.fromisoformat(start_utc)
@@ -355,10 +390,9 @@ def schedule_interviews():
                 'attendees': [{ 'email': e } for e in emails]
             }
             
-            # If meeting link provided, add it as description, otherwise create Meet
+            conferenceData = None
             if meeting_link:
                 event['description'] = f'Interview Meeting Link: {meeting_link}'
-                conferenceData = None
             else:
                 conferenceData = {
                     'createRequest': {
@@ -366,29 +400,7 @@ def schedule_interviews():
                     }
                 }
             
-            created = None
-            # Try service account first
-            try:
-                if not GOOGLE_SERVICE_ACCOUNT_FILE:
-                    raise Exception('Service account not configured')
-                creds = service_account.Credentials.from_service_account_file(
-                    GOOGLE_SERVICE_ACCOUNT_FILE,
-                    scopes=SCOPES,
-                    subject=hr_email
-                )
-                service = build('calendar', 'v3', credentials=creds)
-                insert_kwargs = {'calendarId': hr_email, 'body': event}
-                if conferenceData:
-                    event['conferenceData'] = conferenceData
-                    insert_kwargs['conferenceDataVersion'] = 1
-                created = service.events().insert(**insert_kwargs).execute()
-            except Exception as sa_err:
-                oauth_service = build_calendar_service_oauth()
-                insert_kwargs = {'calendarId': 'primary', 'body': event}
-                if conferenceData:
-                    event['conferenceData'] = conferenceData
-                    insert_kwargs['conferenceDataVersion'] = 1
-                created = oauth_service.events().insert(**insert_kwargs).execute()
+            created = create_google_calendar_event_logic(hr_email, event, conferenceData)
             
             # Extract meeting link from created event if we auto-created Meet
             if not meeting_link and created:
@@ -396,6 +408,7 @@ def schedule_interviews():
                 logger.info(f"Created calendar event with Meet link: {meeting_link}")
             elif created:
                 logger.info(f"Created calendar event with provided link: {meeting_link}")
+                
         except Exception as create_err:
             # Log error but continue - still save to DB and send emails
             logger.error(f"Failed to create calendar event: {str(create_err)}")
@@ -450,147 +463,6 @@ HR
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/interviews/candidates-with-schedules', methods=['GET'])
-def get_candidates_with_schedules():
-    """Get all interview candidates with their schedule information"""
-    try:
-        candidates = db.get_candidates_with_schedules()
-        scheduling_agent.notify(
-            f"📋 Retrieved {len(candidates)} interview candidates for review",
-            'info'
-        )
-        return jsonify({'success': True, 'candidates': candidates})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/notifications', methods=['GET'])
-def get_notifications():
-    """Get all AI agent notifications"""
-    try:
-        from backend.agent_orchestrator import get_notifications as get_notifs
-        notifications = get_notifs()
-        return jsonify({'success': True, 'notifications': notifications})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/notifications/<int:index>/read', methods=['POST'])
-def mark_notification_read(index):
-    """Mark notification as read"""
-    try:
-        from backend.agent_orchestrator import mark_notification_read as mark_read
-        mark_read(index)
-        return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/notifications/clear', methods=['POST'])
-def clear_notifications():
-    """Clear all notifications"""
-    try:
-        from backend.agent_orchestrator import clear_all_notifications
-        clear_all_notifications()
-        return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/interviews/select-candidate', methods=['POST'])
-def select_candidate():
-    """Select candidate and send offer letter"""
-    try:
-        data = request.get_json() or {}
-        candidate_email = data.get('candidate_email')
-        interview_score = data.get('interview_score', 75)  # Default if not provided
-        test_score = data.get('test_score', 70)  # Default if not provided
-        
-        if not candidate_email:
-            return jsonify({'success': False, 'error': 'candidate_email is required'}), 400
-        
-        # Calculate overall score
-        overall = (test_score * 0.4 + interview_score * 0.6)
-        threshold = 70.0
-        
-        if overall < threshold:
-            return jsonify({
-                'success': False,
-                'error': f'Candidate score {overall:.1f}% below threshold {threshold}%. Override?',
-                'score': overall,
-                'threshold': threshold
-            }), 400
-        
-        # Notify selection
-        scheduling_agent.notify(
-            f"✅ Candidate {candidate_email} selected (Score: {overall:.1f}%)",
-            'success',
-            reasoning=f"Test: {test_score:.1f}%, Interview: {interview_score:.1f}% → Overall: {overall:.1f}%"
-        )
-        
-        # Mark as selected in database
-        db.select_candidate(candidate_email)
-        
-        # Send offer letter email
-        smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
-        smtp_port = int(os.getenv('SMTP_PORT', '587'))
-        sender_email = os.getenv('SENDER_EMAIL')
-        sender_password = os.getenv('SENDER_PASSWORD')
-        
-        if sender_email and sender_password:
-            try:
-                server = smtplib.SMTP(smtp_server, smtp_port)
-                server.starttls()
-                server.login(sender_email, sender_password)
-                
-                msg = MIMEMultipart()
-                msg['From'] = sender_email
-                msg['To'] = candidate_email
-                msg['Subject'] = 'Congratulations! Job Offer Letter'
-                
-                body = f"""
-Dear Candidate,
-
-Congratulations! We are delighted to inform you that after a thorough review of your application and interview performance, we would like to extend a job offer to you.
-
-Your exceptional skills, qualifications, and the positive impression you made during the interview process have made you the ideal candidate for this position.
-
-We are excited about the prospect of you joining our team and contributing to our organization's success.
-
-Our HR team will be in touch with you shortly to discuss the details of the offer, including compensation, benefits, and start date.
-
-Once again, congratulations on this achievement!
-
-We look forward to welcoming you to our team.
-
-Best regards,
-HR Team
-RecruitAI
-"""
-                msg.attach(MIMEText(body, 'plain'))
-                server.sendmail(sender_email, candidate_email, msg.as_string())
-                server.quit()
-                logger.info(f"Offer letter sent to {candidate_email}")
-            except Exception as mail_err:
-                logger.warning(f"Failed to send offer letter to {candidate_email}: {str(mail_err)}")
-                return jsonify({'success': True, 'message': 'Candidate selected but email failed', 'error': str(mail_err)}), 200
-        
-        return jsonify({'success': True, 'message': 'Candidate selected and offer letter sent'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/interviews/reject-candidate', methods=['POST'])
-def reject_candidate():
-    """Reject candidate and remove from database"""
-    try:
-        data = request.get_json() or {}
-        candidate_email = data.get('candidate_email')
-        if not candidate_email:
-            return jsonify({'success': False, 'error': 'candidate_email is required'}), 400
-        
-        db.reject_candidate(candidate_email)
-        logger.info(f"Candidate {candidate_email} rejected and removed from database")
-        
-        return jsonify({'success': True, 'message': 'Candidate rejected and removed'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
 @app.route('/api/interviews/create_event', methods=['POST'])
 def create_calendar_event():
     try:
@@ -639,6 +511,7 @@ def create_calendar_event():
             'end': { 'dateTime': end_iso, 'timeZone': timezone },
             'attendees': [{ 'email': e } for e in attendees if isinstance(e, str) and '@' in e]
         }
+        
         conferenceData = None
         if create_meet:
             conferenceData = {
@@ -646,29 +519,9 @@ def create_calendar_event():
                     'requestId': str(uuid.uuid4())
                 }
             }
-        # Try service account path first
-        try:
-            if not GOOGLE_SERVICE_ACCOUNT_FILE:
-                raise Exception('Service account not configured')
-            creds = service_account.Credentials.from_service_account_file(
-                GOOGLE_SERVICE_ACCOUNT_FILE,
-                scopes=SCOPES,
-                subject=hr_email
-            )
-            service = build('calendar', 'v3', credentials=creds)
-            insert_kwargs = {'calendarId': hr_email, 'body': event}
-            if conferenceData:
-                event['conferenceData'] = conferenceData
-                insert_kwargs['conferenceDataVersion'] = 1
-            created = service.events().insert(**insert_kwargs).execute()
-        except Exception as sa_err:
-            # OAuth fallback on primary calendar
-            oauth_service = build_calendar_service_oauth()
-            insert_kwargs = {'calendarId': 'primary', 'body': event}
-            if conferenceData:
-                event['conferenceData'] = conferenceData
-                insert_kwargs['conferenceDataVersion'] = 1
-            created = oauth_service.events().insert(**insert_kwargs).execute()
+            
+        created = create_google_calendar_event_logic(hr_email, event, conferenceData)
+        
         meet_link = created.get('hangoutLink') or created.get('conferenceData', {}).get('entryPoints', [{}])[0].get('uri')
         return jsonify({'success': True, 'event_id': created.get('id'), 'htmlLink': created.get('htmlLink'), 'meet_link': meet_link})
     except Exception as e:
