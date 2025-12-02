@@ -36,14 +36,16 @@ else:
 # MongoDB setup
 DB_NAME = "profiles"           # replace with your database name
 COLLECTION_NAME = "json_files"   # replace with your collection name
-client = MongoClient(MONGO_URI)
+# Add timeout to fail fast if DB is unreachable (5 seconds)
+client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
 db = client[DB_NAME]
 collection = db[COLLECTION_NAME]
 applications_col = db.get_collection("applications")
 # Ensure unique (job_id, email) to prevent duplicate applications per job
 try:
     applications_col.create_index([("job_id", 1), ("email", 1)], unique=True)
-except Exception:
+except Exception as e:
+    print(f"WARNING: Could not create index on MongoDB: {e}", flush=True)
     pass
 
 # Flask app

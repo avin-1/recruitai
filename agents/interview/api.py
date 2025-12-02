@@ -42,7 +42,24 @@ TOKEN_FILE = os.path.join(os.path.dirname(__file__), 'token.json')
 
 def build_calendar_service_oauth():
     creds = None
-    if os.path.exists(TOKEN_FILE):
+    
+    # Check for token in environment variable (Render deployment)
+    token_json = os.getenv("GOOGLE_TOKEN_JSON")
+    if token_json:
+        try:
+            # Create a temporary file for the token
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as temp:
+                temp.write(token_json)
+                temp_token_path = temp.name
+            creds = Credentials.from_authorized_user_file(temp_token_path, SCOPES)
+            # Clean up temp file? Maybe keep it for the session.
+        except Exception as e:
+            print(f"Error loading token from env: {e}")
+            creds = None
+    
+    # Fallback to local file
+    if not creds and os.path.exists(TOKEN_FILE):
         try:
             creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
         except Exception:
@@ -53,18 +70,37 @@ def build_calendar_service_oauth():
             try:
                 creds.refresh(Request())
             except Exception:
-                # Refresh failed (e.g. revoked), so force new login
                 creds = None
         
         if not creds:
-            if not os.path.exists(CREDENTIALS_FILE):
-                raise Exception("credentials.json not found for OAuth flow")
-            flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_FILE, SCOPES)
-            # Launch local server for user consent
-            creds = flow.run_local_server(port=0)
+            # Check for credentials in environment variable
+            creds_json = os.getenv("GOOGLE_CREDENTIALS_JSON")
+            if creds_json:
+                 import tempfile
+                 with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as temp:
+                    temp.write(creds_json)
+                    temp_creds_path = temp.name
+                 flow = InstalledAppFlow.from_client_secrets_file(temp_creds_path, SCOPES)
+            elif os.path.exists(CREDENTIALS_FILE):
+                flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_FILE, SCOPES)
+            else:
+                print("WARNING: No Google Credentials found (Env or File). Calendar features will fail.")
+                return None
+
+            # Launch local server for user consent (This won't work on Render, but needed for local setup)
+            # On Render, we expect a valid token to be present in env.
+            try:
+                creds = flow.run_local_server(port=0)
+            except Exception as e:
+                print(f"Cannot run local server for auth (expected on Render): {e}")
+                return None
             
-        with open(TOKEN_FILE, 'w') as token:
-            token.write(creds.to_json())
+        # Save the token for next time (Local only)
+        try:
+            with open(TOKEN_FILE, 'w') as token:
+                token.write(creds.to_json())
+        except Exception:
+            pass # Read-only filesystem or other issue
             
     return build('calendar', 'v3', credentials=creds)
 
@@ -156,17 +192,29 @@ def get_google_calendar_availability_oauth(days=5):
 # Email should have a calendar (must be authorized via OAuth2 or service account with access!)
 def get_google_calendar_availability(hr_email, days=5):
     # Prefer service account for daemon/server; else, OAuth2 needed per HR account
-    # Here, expect service account json in GOOGLE_SERVICE_ACCOUNT_FILE
+    # Here, expect service account json in GOOGLE_SERVICE_ACCOUNT_FILE or GOOGLE_SERVICE_ACCOUNT_JSON env var
     try:
         creds = None
-        if GOOGLE_SERVICE_ACCOUNT_FILE:
+        service_account_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
+        
+        if service_account_json:
+            import json
+            info = json.loads(service_account_json)
+            creds = service_account.Credentials.from_service_account_info(
+                info,
+                scopes=SCOPES,
+                subject=hr_email  # Domain-wide delegation, if available
+            )
+        elif GOOGLE_SERVICE_ACCOUNT_FILE:
             creds = service_account.Credentials.from_service_account_file(
                 GOOGLE_SERVICE_ACCOUNT_FILE,
                 scopes=SCOPES,
                 subject=hr_email  # Domain-wide delegation, if available
             )
         else:
-            raise Exception("Service account-based fetch not configured. Set GOOGLE_SERVICE_ACCOUNT_FILE.")
+            # raise Exception("Service account-based fetch not configured. Set GOOGLE_SERVICE_ACCOUNT_FILE.")
+            # Fallback to OAuth will happen if this returns string error or we handle it below
+            pass
         service = build('calendar', 'v3', credentials=creds)
         now = datetime.datetime.now(datetime.timezone.utc)
         time_min = now.isoformat()
