@@ -11,7 +11,7 @@ const CORE_API = CORE_API_BASE;
 
 const CreateJobProfile = () => {
   const [activeTab, setActiveTab] = useState("chat"); // "chat" or "upload"
-  
+
   // Chat state
   const [chatMessages, setChatMessages] = useState([
     {
@@ -63,48 +63,83 @@ const CreateJobProfile = () => {
     setIsGenerating(true);
     const generatingMessage = {
       type: "assistant",
-      content: "🤖 Analyzing your job description and creating a structured profile...",
+      content: "🤖 Processing...",
       timestamp: new Date().toISOString(),
       isGenerating: true,
     };
     setChatMessages((prev) => [...prev, generatingMessage]);
 
     try {
-      // Call API to create job profile
-      const res = await axios.post(`${CORE_API}/create-job-profile`, {
-        job_description: userMessage,
-      });
-
-      // Remove generating message and add success message
-      setChatMessages((prev) => prev.filter((msg) => !msg.isGenerating));
-
-      const successMessage = {
-        type: "assistant",
-        content: "✅ Job profile created successfully! Review it below and approve, reject, or modify as needed.",
-        timestamp: new Date().toISOString(),
+      // Check if we have a generated profile to provide context
+      const context = {
+        profile: generatedProfile
       };
-      setChatMessages((prev) => [...prev, successMessage]);
 
-      // Set generated profile to display
-      setGeneratedProfile(res.data.profile);
-      setEditingProfile(false);
-      setActionMessage("✅ Profile created successfully!");
-      
-      // Clear message after 3 seconds
-      setTimeout(() => setActionMessage(""), 3000);
+      // If no profile exists and user message looks like a description, treat as creation
+      // Otherwise, use the chat endpoint
+      let res;
+      if (!generatedProfile && userMessage.length > 20 && !userMessage.toLowerCase().startsWith("create")) {
+        // Assume creation intent if long message and no profile
+        res = await axios.post(`${CORE_API}/create-job-profile`, {
+          job_description: userMessage,
+        });
+
+        setGeneratedProfile(res.data.profile);
+        setEditingProfile(false);
+        setActionMessage("✅ Profile created successfully!");
+
+        setChatMessages((prev) => prev.filter((msg) => !msg.isGenerating));
+        setChatMessages((prev) => [...prev, {
+          type: "assistant",
+          content: "✅ Job profile created successfully! Review it below and approve, reject, or modify as needed.",
+          timestamp: new Date().toISOString(),
+        }]);
+      } else {
+        // Use agentic chat endpoint
+        res = await axios.post(`${CORE_API}/chat`, {
+          message: userMessage,
+          context: context
+        });
+
+        setChatMessages((prev) => prev.filter((msg) => !msg.isGenerating));
+
+        const data = res.data;
+        setChatMessages((prev) => [...prev, {
+          type: "assistant",
+          content: data.message,
+          timestamp: new Date().toISOString(),
+        }]);
+
+        // Handle actions
+        if (data.action === "UPDATE_PROFILE_FIELD" && data.data && generatedProfile) {
+          const { field, value } = data.data;
+          // Update local state
+          const updatedProfile = { ...generatedProfile, [field]: value, approved: false };
+          setGeneratedProfile(updatedProfile);
+          setModifiedData(updatedProfile); // Also update modified data
+
+          // Trigger save to backend
+          await axios.post(`${CORE_API}/modify`, {
+            profile_id: generatedProfile._id,
+            new_profile_data: { [field]: value }
+          });
+          setActionMessage(`✅ Updated ${field} to ${value}`);
+        } else if (data.action === "CREATE_NEW_PROFILE") {
+          handleCreateNew();
+        } else if (data.action === "APPROVE_PROFILE" && generatedProfile) {
+          handleApprove();
+        }
+      }
     } catch (err) {
       console.error(err);
-      // Remove generating message and add error message
       setChatMessages((prev) => prev.filter((msg) => !msg.isGenerating));
 
       const errorMessage = {
         type: "assistant",
-        content: `❌ Failed to create job profile: ${err.response?.data?.error || err.message}. Please try again with a more detailed description.`,
+        content: `❌ Error: ${err.response?.data?.error || err.message}.`,
         timestamp: new Date().toISOString(),
       };
       setChatMessages((prev) => [...prev, errorMessage]);
-      setActionMessage("❌ Failed to create profile");
-      setTimeout(() => setActionMessage(""), 3000);
     } finally {
       setIsGenerating(false);
     }
@@ -152,11 +187,11 @@ const CreateJobProfile = () => {
       // For now, we'll show a message. In production, you might want to poll for the profile
       setActionMessage("✅ PDF uploaded successfully! The profile will be processed and appear in the profiles list shortly.");
       setTimeout(() => setActionMessage(""), 5000);
-      
+
       // Reset file input
       setFile(null);
       setUploadProgress(0);
-      
+
       // Note: In a real implementation, you might want to poll the API or use websockets
       // to get the generated profile automatically. For now, users can check the Profiles page.
     } catch (err) {
@@ -190,7 +225,7 @@ const CreateJobProfile = () => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    
+
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const droppedFile = e.dataTransfer.files[0];
       if (droppedFile.type === "application/pdf") {
@@ -390,7 +425,7 @@ const CreateJobProfile = () => {
         <div className="absolute top-0 right-0 w-96 h-96 bg-purple-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
         <div className="absolute bottom-0 left-1/2 w-96 h-96 bg-pink-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
       </div>
-      
+
       <div className="max-w-7xl mx-auto relative z-10">
         {/* Header */}
         <div className="mb-8">
@@ -405,13 +440,12 @@ const CreateJobProfile = () => {
         {/* Action Message */}
         {actionMessage && (
           <div
-            className={`mb-4 p-4 rounded-xl border backdrop-blur-md shadow-lg ${
-              actionMessage.startsWith("✅")
+            className={`mb-4 p-4 rounded-xl border backdrop-blur-md shadow-lg ${actionMessage.startsWith("✅")
                 ? "bg-green-500/20 border-green-300/50 text-green-900 backdrop-blur-sm"
                 : actionMessage.startsWith("⚠️")
-                ? "bg-yellow-500/20 border-yellow-300/50 text-yellow-900 backdrop-blur-sm"
-                : "bg-red-500/20 border-red-300/50 text-red-900 backdrop-blur-sm"
-            }`}
+                  ? "bg-yellow-500/20 border-yellow-300/50 text-yellow-900 backdrop-blur-sm"
+                  : "bg-red-500/20 border-red-300/50 text-red-900 backdrop-blur-sm"
+              }`}
           >
             {actionMessage}
           </div>
@@ -429,10 +463,10 @@ const CreateJobProfile = () => {
                   </CardDescription>
                 </div>
                 {generatedProfile && (
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={handleCreateNew} 
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCreateNew}
                     className="bg-white/60 backdrop-blur-sm border-white/30 hover:bg-white/80 shadow-md"
                   >
                     New Profile
@@ -445,13 +479,13 @@ const CreateJobProfile = () => {
               <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
                 <div className="px-6 pt-4 border-b border-white/30 bg-white/20 backdrop-blur-sm flex-shrink-0">
                   <TabsList className="grid w-full grid-cols-2 bg-white/40 backdrop-blur-sm border border-white/30 p-1 rounded-lg">
-                    <TabsTrigger 
+                    <TabsTrigger
                       value="chat"
                       className="data-[state=active]:bg-white/80 data-[state=active]:shadow-lg backdrop-blur-sm transition-all"
                     >
                       💬 Chat Assistant
                     </TabsTrigger>
-                    <TabsTrigger 
+                    <TabsTrigger
                       value="upload"
                       className="data-[state=active]:bg-white/80 data-[state=active]:shadow-lg backdrop-blur-sm transition-all"
                     >
@@ -484,26 +518,23 @@ const CreateJobProfile = () => {
                     {chatMessages.map((msg, idx) => (
                       <div
                         key={idx}
-                        className={`flex ${
-                          msg.type === "user" ? "justify-end" : "justify-start"
-                        }`}
+                        className={`flex ${msg.type === "user" ? "justify-end" : "justify-start"
+                          }`}
                       >
                         <div
-                          className={`max-w-[80%] rounded-2xl px-4 py-3 backdrop-blur-md transition-all hover:scale-[1.02] ${
-                            msg.type === "user"
+                          className={`max-w-[80%] rounded-2xl px-4 py-3 backdrop-blur-md transition-all hover:scale-[1.02] ${msg.type === "user"
                               ? "bg-gradient-to-r from-blue-600/90 to-indigo-600/90 text-white shadow-xl border border-white/30"
                               : "bg-white/70 backdrop-blur-md border border-white/50 text-gray-800 shadow-xl"
-                          }`}
+                            }`}
                         >
                           <p className="text-sm leading-relaxed whitespace-pre-wrap">
                             {msg.content}
                           </p>
                           <p
-                            className={`text-xs mt-2 ${
-                              msg.type === "user"
+                            className={`text-xs mt-2 ${msg.type === "user"
                                 ? "text-blue-100/90"
                                 : "text-gray-600"
-                            }`}
+                              }`}
                           >
                             {new Date(msg.timestamp).toLocaleTimeString()}
                           </p>
@@ -555,11 +586,10 @@ const CreateJobProfile = () => {
                   <div className="flex-1 overflow-y-auto p-6 space-y-4">
                     <div className="flex items-center justify-center min-h-[300px]">
                       <div
-                        className={`w-full border-2 border-dashed rounded-lg p-12 text-center transition-all ${
-                          isDragging
+                        className={`w-full border-2 border-dashed rounded-lg p-12 text-center transition-all ${isDragging
                             ? "border-blue-500 bg-blue-50 scale-105"
                             : "border-white/40 bg-white/30 hover:border-blue-400/50 hover:bg-white/40 backdrop-blur-sm"
-                        }`}
+                          }`}
                         onDragEnter={handleDragEnter}
                         onDragLeave={handleDragLeave}
                         onDragOver={handleDragOver}
@@ -824,7 +854,7 @@ const CreateJobProfile = () => {
                         </h4>
                         <ul className="list-disc list-inside space-y-1 text-gray-700 bg-white/50 backdrop-blur-sm border border-white/30 p-4 rounded-lg shadow-md">
                           {Array.isArray(generatedProfile.responsibilities) &&
-                          generatedProfile.responsibilities.length > 0 ? (
+                            generatedProfile.responsibilities.length > 0 ? (
                             generatedProfile.responsibilities.map((item, idx) => (
                               <li key={idx}>{item}</li>
                             ))
@@ -842,7 +872,7 @@ const CreateJobProfile = () => {
                         </h4>
                         <div className="flex flex-wrap gap-2 bg-white/50 backdrop-blur-sm border border-white/30 p-4 rounded-lg shadow-md">
                           {Array.isArray(generatedProfile.required_skills) &&
-                          generatedProfile.required_skills.length > 0 ? (
+                            generatedProfile.required_skills.length > 0 ? (
                             generatedProfile.required_skills.map((skill, idx) => (
                               <Badge key={idx} variant="outline" className="bg-white/80 backdrop-blur-sm border-white/40">
                                 {skill}

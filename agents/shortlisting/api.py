@@ -139,6 +139,59 @@ def generate_questions():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/tests/chat', methods=['POST'])
+def chat_with_agent():
+    """Agentic chat endpoint for test management"""
+    try:
+        data = request.get_json()
+        message = data.get('message', '').lower()
+        
+        response = {
+            'success': True,
+            'message': "I didn't understand that command.",
+            'action': None,
+            'data': None
+        }
+
+        # Simple intent classification (can be upgraded to LLM)
+        if 'create' in message and 'test' in message:
+            # Extract name if possible, else ask for it
+            # For now, just trigger the UI modal or form
+            response['message'] = "I can help you create a test. I've opened the creation form for you."
+            response['action'] = 'OPEN_CREATE_TEST'
+            
+        elif 'generate' in message or 'question' in message:
+            # Extract count and topic
+            import re
+            count_match = re.search(r'(\d+)', message)
+            count = int(count_match.group(1)) if count_match else 5
+            topic = message.replace('generate', '').replace('questions', '').replace(str(count), '').strip()
+            
+            if not topic:
+                topic = 'general programming'
+                
+            questions = test_gen_agent.generate_questions(topic, count, 'medium', 'multiple_choice')
+            response['message'] = f"I've generated {len(questions)} questions about {topic}."
+            response['action'] = 'SHOW_GENERATED_QUESTIONS'
+            response['data'] = questions
+            
+        elif 'delete' in message and 'test' in message:
+            response['message'] = "Please select the test you want to delete from the list."
+            response['action'] = 'SWITCH_TAB_MANAGE'
+            
+        elif 'list' in message or 'show' in message:
+            response['message'] = "Here are the current tests."
+            response['action'] = 'SWITCH_TAB_MANAGE'
+            
+        else:
+            # Fallback to general AI chat or help
+            response['message'] = "I can help you create tests, generate questions, or manage existing assessments. Try saying 'Create a python test' or 'Generate 5 java questions'."
+            
+        return jsonify(response)
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/tests/create', methods=['POST'])
 def create_test():
     """Create a new test"""
@@ -196,6 +249,14 @@ def send_test_invitations(test_id):
         data = request.get_json() or {}
         test_link = data.get('test_link')
         
+        # Check if test is archived
+        status = db_manager.get_test_status(test_id)
+        if status == 'archived':
+            return jsonify({
+                'success': False,
+                'error': 'Cannot send invitations for an archived test'
+            }), 400
+        
         try:
             get_shortlisting_agent().notify(
                 f"📧 Sending test invitations for test {test_id}...",
@@ -250,10 +311,10 @@ def get_all_tests():
                 'test_name': test[1],
                 'test_description': test[2],
                 'questions': test[3],
-                'platform_type': test[4] if len(test) > 4 else 'codeforces',
-                'custom_platform_name': test[5] if len(test) > 5 else None,
-                'created_date': test[6] if len(test) > 6 else None,
-                'status': test[7] if len(test) > 7 else 'active'
+                'created_date': test[4] if len(test) > 4 else None,
+                'status': test[5] if len(test) > 5 else 'active',
+                'platform_type': test[6] if len(test) > 6 else 'codeforces',
+                'custom_platform_name': test[7] if len(test) > 7 else None
             }
             formatted_tests.append(test_dict)
         return jsonify({
@@ -283,17 +344,33 @@ def get_test_platform(test_id):
 
 @app.route('/api/tests/<int:test_id>', methods=['DELETE'])
 def delete_test(test_id):
-    """Archive a test (soft delete)"""
+    """Archive a test (soft delete) or permanently delete"""
     try:
-        try:
-            get_shortlisting_agent().notify(
-                f"🗑️ Archiving test {test_id}...",
-                'processing'
-            )
-        except:
-            pass
+        permanent = request.args.get('permanent', 'false').lower() == 'true'
         
-        db_manager.archive_test(test_id)
+        if permanent:
+            try:
+                get_shortlisting_agent().notify(
+                    f"🗑️ Permanently deleting test {test_id}...",
+                    'processing',
+                    reasoning="Removing test and all associated data from database"
+                )
+            except:
+                pass
+            
+            db_manager.permanently_delete_test(test_id)
+            message = 'Test permanently deleted'
+        else:
+            try:
+                get_shortlisting_agent().notify(
+                    f"🗑️ Archiving test {test_id}...",
+                    'processing'
+                )
+            except:
+                pass
+            
+            db_manager.archive_test(test_id)
+            message = 'Test archived successfully'
         
         try:
             get_shortlisting_agent().notify(
@@ -526,6 +603,9 @@ def get_candidates():
 def get_candidate_analysis(test_id, candidate_id):
     """Get detailed AI-powered performance analysis for a specific candidate"""
     try:
+        report_type = request.args.get('report_type', 'general')
+        job_role = request.args.get('job_role', 'Software Engineer')
+        
         # Get test questions
         test_questions = db_manager.get_test_questions(test_id)
         
@@ -535,8 +615,8 @@ def get_candidate_analysis(test_id, candidate_id):
         # Find candidate data
         candidate_data = None
         for row in raw_results:
-            if row[0] == candidate_id:  # Assuming candidate_id matches userid_id
-                email, username, question_id, solved, result_data = row
+            if row[0] == candidate_id:  # candidate_id matches u.id (index 0)
+                user_id, email, username, question_id, solved, result_data = row
                 if not candidate_data:
                     candidate_data = {
                         'email': email,
@@ -560,10 +640,20 @@ def get_candidate_analysis(test_id, candidate_id):
                 'error': 'Candidate not found or no results available'
             }), 404
         
-        # Fetch real Codeforces data
+        # Fetch real Codeforces data ONLY if test has Codeforces questions
         from codeforces_api import CodeforcesAPI
         cf_api = CodeforcesAPI()
-        codeforces_data = cf_api.get_user_submission_details(candidate_data['username'], test_questions)
+        
+        # Check if test has Codeforces questions
+        has_codeforces = False
+        for q in test_questions:
+            if q.get('type') == 'codeforces' or ('contestId' in q and 'index' in q):
+                has_codeforces = True
+                break
+        
+        codeforces_data = None
+        if has_codeforces:
+            codeforces_data = cf_api.get_user_submission_details(candidate_data['username'], test_questions)
         
         # Perform AI analysis with real Codeforces data
         analyzer = get_llm_analyzer()
@@ -593,7 +683,7 @@ def get_candidate_analysis(test_id, candidate_id):
         
         # Wrap analysis in try-except to prevent crashes
         try:
-            analysis = analyzer.analyze_candidate_performance(candidate_data, test_questions, codeforces_data)
+            analysis = analyzer.analyze_candidate_performance(candidate_data, test_questions, codeforces_data, report_type=report_type, job_role=job_role)
         except Exception as analysis_err:
             print(f"Error during candidate analysis: {analysis_err}")
             import traceback
@@ -629,31 +719,14 @@ def get_all_candidate_analysis(test_id):
         # Get test questions
         test_questions = db_manager.get_test_questions(test_id)
         
-        # Get all candidate results
-        raw_results = db_manager.get_test_results(test_id)
+        # Get all candidate results using test_service which handles deduplication
+        candidates_list = test_service.get_test_results(test_id)
         
-        # Group results by candidate
+        # Convert list to dict keyed by user_key for compatibility
         candidates_data = {}
-        for row in raw_results:
-            email, username, question_id, solved, result_data = row
-            user_key = f"{email}_{username}"
-            
-            if user_key not in candidates_data:
-                candidates_data[user_key] = {
-                    'email': email,
-                    'username': username,
-                    'questions': {},
-                    'total_solved': 0,
-                    'total_questions': len(test_questions)
-                }
-            
-            candidates_data[user_key]['questions'][question_id] = {
-                'solved': solved,
-                'data': result_data
-            }
-            
-            if solved:
-                candidates_data[user_key]['total_solved'] += 1
+        for candidate in candidates_list:
+            user_key = f"{candidate['email']}_{candidate['username']}"
+            candidates_data[user_key] = candidate
         
         # Analyze each candidate with real Codeforces data
         analyses = []
@@ -946,6 +1019,57 @@ def submit_test(test_id):
             'success': True,
             'message': 'Test submitted successfully'
         })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+
+# --- Prompt Settings Endpoints ---
+
+from prompt_manager import PromptManager
+prompt_manager = PromptManager()
+
+@app.route('/api/settings/prompts', methods=['GET'])
+def get_prompts():
+    """Get current prompts for all agents"""
+    agents = ["Test Generation Agent", "Interview Chat Agent", "Job Description Agent"]
+    prompts = {}
+    for agent in agents:
+        prompts[agent] = {
+            "current": prompt_manager.get_prompt(agent),
+            "default": prompt_manager.get_default_prompt(agent),
+            "is_custom": prompt_manager.get_prompt(agent) != prompt_manager.get_default_prompt(agent)
+        }
+    return jsonify({'success': True, 'prompts': prompts})
+
+@app.route('/api/settings/prompts/modify', methods=['POST'])
+def modify_prompt():
+    """Modify an agent's prompt using LLM"""
+    data = request.get_json()
+    agent_name = data.get('agent_name')
+    instruction = data.get('instruction')
+    
+    if not agent_name or not instruction:
+        return jsonify({'success': False, 'error': 'Missing agent_name or instruction'}), 400
+        
+    try:
+        new_prompt = prompt_manager.modify_prompt_with_llm(agent_name, instruction)
+        return jsonify({'success': True, 'new_prompt': new_prompt})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/settings/prompts/reset', methods=['POST'])
+def reset_prompt():
+    """Reset an agent's prompt to default"""
+    data = request.get_json()
+    agent_name = data.get('agent_name')
+    
+    if not agent_name:
+        return jsonify({'success': False, 'error': 'Missing agent_name'}), 400
+        
+    try:
+        prompt_manager.reset_prompt(agent_name)
+        return jsonify({'success': True, 'prompt': prompt_manager.get_default_prompt(agent_name)})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

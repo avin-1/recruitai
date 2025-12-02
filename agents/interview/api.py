@@ -540,37 +540,105 @@ def chat_interview_agent():
 
         response_text = ""
         slots = []
+        action = None
+        action_data = {}
         
+        # Intent: Suggest Slots
         if 'suggest' in message or 'slot' in message or 'schedule' in message:
             # Trigger slot proposal logic
-            # 1. Get availability
             busy_slots = get_google_calendar_availability(hr_email)
             if isinstance(busy_slots, str): # Error case
-                 # Try OAuth fallback
                 try:
                     busy_slots = get_google_calendar_availability_oauth()
                 except Exception:
                     return jsonify({'success': True, 'response': "I couldn't access your calendar. Please check your permissions."})
 
-            # 2. Get candidate count
             emails = db.get_interview_candidate_emails()
             candidate_count = len(emails)
             
             if candidate_count == 0:
                  return jsonify({'success': True, 'response': "There are no candidates to schedule interviews for."})
 
-            # 3. Propose slots
             proposals = scheduling_agent.propose_best_slots(busy_slots, candidate_count)
             slots = proposals[:3] # Return top 3
             response_text = f"Based on your calendar and the number of candidates ({candidate_count}), here are some suggested time slots:"
+        
+        # Intent: Count Candidates
+        elif 'how many' in message or 'count' in message:
+            emails = db.get_interview_candidate_emails()
+            count = len(emails)
+            response_text = f"There are currently {count} candidates in the interview list."
+            
+        # Intent: Remove Candidate
+        elif 'remove' in message or 'delete' in message:
+            # Extract email using simple logic (or regex)
+            import re
+            email_match = re.search(r'[\w\.-]+@[\w\.-]+', message)
+            if email_match:
+                email_to_remove = email_match.group(0)
+                # We don't remove directly here, we tell frontend to do it or call another endpoint
+                # But to be "agentic", we should probably do it or instruct frontend
+                # Let's instruct frontend to trigger the removal flow
+                response_text = f"I'll help you remove {email_to_remove}. Please confirm."
+                action = "REMOVE_CANDIDATE"
+                action_data = {"email": email_to_remove}
+            else:
+                response_text = "Who would you like to remove? Please specify the email address."
+                
+        # Intent: List Candidates
+        elif 'list' in message or 'show candidates' in message:
+            emails = db.get_interview_candidate_emails()
+            if emails:
+                response_text = "Here are the candidates:\n" + "\n".join([f"- {e}" for e in emails[:10]])
+                if len(emails) > 10:
+                    response_text += f"\n...and {len(emails)-10} more."
+            else:
+                response_text = "The candidate list is empty."
+
         else:
-            response_text = "I can help you schedule interviews. Try asking me to 'suggest slots' or 'find interview times'."
+            response_text = "I can help you schedule interviews. Try asking me to 'suggest slots', 'count candidates', or 'remove [email]'."
 
         return jsonify({
             'success': True, 
             'response': response_text,
-            'slots': slots
+            'slots': slots,
+            'action': action,
+            'data': action_data
         })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/interviews/candidates-with-schedules', methods=['GET'])
+def get_interview_candidates_with_schedules():
+    try:
+        candidates = db.get_candidates_with_schedules()
+        return jsonify({'success': True, 'candidates': candidates})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/interviews/reject-candidate', methods=['POST'])
+def reject_interview_candidate():
+    try:
+        data = request.get_json() or {}
+        candidate_email = data.get('candidate_email')
+        if not candidate_email:
+            return jsonify({'success': False, 'error': 'candidate_email is required'}), 400
+            
+        success = db.reject_candidate(candidate_email)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/interviews/select-candidate', methods=['POST'])
+def select_interview_candidate():
+    try:
+        data = request.get_json() or {}
+        candidate_email = data.get('candidate_email')
+        if not candidate_email:
+            return jsonify({'success': False, 'error': 'candidate_email is required'}), 400
+            
+        success = db.select_candidate(candidate_email)
+        return jsonify({'success': success})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

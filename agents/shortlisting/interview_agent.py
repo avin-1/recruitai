@@ -65,7 +65,14 @@ class InterviewChatAgent(AIAgent):
             current_time_str = current_dt.strftime("%H:%M")
 
             # Construct prompt for the LLM
-            system_prompt = f"""You are an intelligent interview scheduling assistant.
+            # Construct prompt for the LLM
+            try:
+                from prompt_manager import PromptManager
+                prompt_manager = PromptManager()
+                template = prompt_manager.get_prompt("Interview Chat Agent")
+            except Exception as e:
+                print(f"Error loading prompt: {e}")
+                template = """You are an intelligent interview scheduling assistant.
 Your goal is to help the user schedule an interview.
 Current Date: {current_date_str} ({current_day_name})
 Current Time: {current_time_str}
@@ -84,6 +91,16 @@ Output JSON ONLY:
   "natural_response": "A friendly, professional response confirming what you understood and what you are showing."
 }}
 """
+            
+            try:
+                system_prompt = template.format(
+                    current_date_str=current_date_str,
+                    current_day_name=current_day_name,
+                    current_time_str=current_time_str
+                )
+            except KeyError as e:
+                print(f"Prompt formatting error: {e}")
+                system_prompt = f"{template}\n\nCurrent Date: {current_date_str}, Time: {current_time_str}"
             
             user_prompt = f"User Message: {message}"
 

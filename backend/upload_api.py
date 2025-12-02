@@ -493,6 +493,78 @@ def create_job_profile_from_text():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# ---------------- Agentic Chat Endpoint ----------------
+@app.route("/chat", methods=["POST"])
+def chat_agent():
+    """Agentic chat endpoint for job profile management"""
+    try:
+        data = request.get_json()
+        message = data.get("message", "").lower()
+        context = data.get("context", {}) # e.g., current profile data
+        
+        response = {
+            "success": True,
+            "message": "I didn't understand that command.",
+            "action": None,
+            "data": None
+        }
+
+        # Intent: Update field
+        # "Change title to Senior Engineer"
+        # "Set location to New York"
+        if "change" in message or "set" in message or "update" in message:
+            import re
+            # Try to extract field and value
+            # Simple regex for "change X to Y"
+            match = re.search(r'(?:change|set|update)\s+(.*?)\s+to\s+(.*)', message, re.IGNORECASE)
+            if match:
+                field_raw = match.group(1).strip().lower()
+                value = match.group(2).strip()
+                
+                # Map common terms to field names
+                field_map = {
+                    "title": "job_title",
+                    "role": "job_title",
+                    "company": "company",
+                    "location": "location",
+                    "experience": "experience_level",
+                    "education": "educational_requirements"
+                }
+                
+                field = field_map.get(field_raw, field_raw)
+                
+                response["message"] = f"I've updated the {field_raw} to '{value}'. Please review the changes."
+                response["action"] = "UPDATE_PROFILE_FIELD"
+                response["data"] = {
+                    "field": field,
+                    "value": value
+                }
+            else:
+                response["message"] = "I can update the profile. Try saying 'Change title to Senior Developer' or 'Set location to Remote'."
+        
+        # Intent: Create new
+        elif "create" in message and "new" in message:
+            response["message"] = "Sure, let's start a new profile. What's the job title?"
+            response["action"] = "CREATE_NEW_PROFILE"
+            
+        # Intent: Approve
+        elif "approve" in message:
+            response["message"] = "Great! I'll approve this profile now."
+            response["action"] = "APPROVE_PROFILE"
+            
+        else:
+            # Fallback to general AI chat (mocked for now)
+            # In a real system, this would call an LLM to generate a response
+            if not context.get("profile"):
+                response["message"] = "I can help you create a job profile. Describe the position you're hiring for, or upload a PDF."
+            else:
+                response["message"] = "I can help you modify this profile. You can ask me to change the title, location, or other details."
+            
+        return jsonify(response)
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 # ---------------- Run App ----------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))

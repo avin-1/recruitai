@@ -62,7 +62,9 @@ import {
   TrendingUp,
   Star,
   Target,
-  AlertCircle
+  AlertCircle,
+  Code,
+  Briefcase
 } from 'lucide-react';
 import { SHORTLISTING_API_BASE } from '@/lib/apiConfig';
 
@@ -81,6 +83,9 @@ const HRTestManager = () => {
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [removedEmails, setRemovedEmails] = useState([]);
   const [testPlatforms, setTestPlatforms] = useState({}); // Cache platform types for tests
+  const [reportType, setReportType] = useState('general');
+  const [jobRole, setJobRole] = useState('Software Engineer');
+  const [selectedTestId, setSelectedTestId] = useState(null);
 
   // Test creation form
   const [testForm, setTestForm] = useState({
@@ -163,26 +168,89 @@ const HRTestManager = () => {
     setChatInput('');
     setChatLoading(true);
 
-    try {
-      // Simple parsing to guess intent
-      const topic = userMsg;
-      const count = userMsg.match(/\d+/)?.[0] || 5;
+    // Restore previous behavior: Check for generation intent client-side
+    // Regex to match "Generate X [topic] questions", "Give me X questions", etc.
+    // Handles typos in 'questions' (question, quesiton, q)
+    const genMatch = userMsg.match(/(?:generate|give|make|add|need|want)\s+(?:me\s+)?(\d+)?\s*(.*)\s+(?:questions?|quesitons?|qs?)/i) ||
+      userMsg.match(/(\d+)\s+(.*)\s+(?:questions?|quesitons?|qs?)/i);
 
-      const response = await fetch(`${API_BASE_URL}/tests/generate-questions`, {
+    // Check if we matched a number or if the message strongly implies generation
+    const isGenerationIntent = genMatch ||
+      ((userMsg.toLowerCase().includes('question') || userMsg.toLowerCase().includes('quesiton')) &&
+        (userMsg.toLowerCase().includes('generate') || userMsg.toLowerCase().includes('give') || userMsg.toLowerCase().includes('add')));
+
+    if (isGenerationIntent) {
+      // Default to 5 if no number found
+      let count = 5;
+      let topic = 'general';
+
+      if (genMatch) {
+        count = genMatch[1] ? parseInt(genMatch[1]) : 5;
+        // Clean up topic: remove verbs and "questions"
+        topic = genMatch[2] || userMsg;
+        topic = topic.replace(/generate|give|make|add|need|want|me|questions?|quesitons?|qs?/gi, '').trim();
+      } else {
+        // Fallback parsing if regex didn't catch specific groups but intent is there
+        const numMatch = userMsg.match(/(\d+)/);
+        if (numMatch) count = parseInt(numMatch[0]);
+        topic = userMsg.replace(/generate|give|make|add|need|want|me|questions?|quesitons?|qs?|\d+/gi, '').trim();
+      }
+
+      // If topic became empty/symbols, default to general
+      if (!topic || topic.length < 2) topic = 'general';
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/tests/generate-questions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            topic: topic,
+            count: count,
+            difficulty: 'medium', // Default
+            type: 'multiple_choice'
+          })
+        });
+        const data = await response.json();
+
+        if (data.success) {
+          setChatMessages(prev => [...prev, {
+            role: 'system',
+            content: `I've generated ${data.questions.length} questions about ${topic}. You can add them to your sections below.`,
+            questions: data.questions
+          }]);
+          setChatLoading(false);
+          return; // Skip agentic chat
+        }
+      } catch (err) {
+        console.error("Generation failed, falling back to agent", err);
+      }
+    }
+
+    // Fallback to Agentic Chat for other intents (Create test, etc.)
+    try {
+      const response = await fetch(`${API_BASE_URL}/tests/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic, count: parseInt(count), difficulty: 'medium' })
+        body: JSON.stringify({ message: userMsg })
       });
 
       const data = await response.json();
+
       if (data.success) {
         setChatMessages(prev => [...prev, {
           role: 'system',
-          content: `Here are ${data.questions.length} questions generated for you.`,
-          questions: data.questions
+          content: data.message,
+          questions: data.action === 'SHOW_GENERATED_QUESTIONS' ? data.data : null
         }]);
+
+        // Handle actions
+        if (data.action === 'OPEN_CREATE_TEST') {
+          setActiveTab('create');
+        } else if (data.action === 'SWITCH_TAB_MANAGE') {
+          setActiveTab('manage');
+        }
       } else {
-        setChatMessages(prev => [...prev, { role: 'system', content: 'Sorry, I failed to generate questions. ' + data.error }]);
+        setChatMessages(prev => [...prev, { role: 'system', content: 'Sorry, I encountered an error: ' + data.error }]);
       }
     } catch (err) {
       setChatMessages(prev => [...prev, { role: 'system', content: 'Network error.' }]);
@@ -192,9 +260,15 @@ const HRTestManager = () => {
   };
 
   const addQuestionToSection = (question, sectionId) => {
+    // Ensure question has an ID
+    const questionWithId = {
+      ...question,
+      id: question.id || `q_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    };
+
     setSections(sections.map(s => {
       if (s.id.toString() === sectionId.toString()) {
-        return { ...s, questions: [...s.questions, question] };
+        return { ...s, questions: [...s.questions, questionWithId] };
       }
       return s;
     }));
@@ -213,7 +287,7 @@ const HRTestManager = () => {
 
   const loadTests = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/tests`);
+      const response = await fetch(`${API_BASE_URL}/tests?t=${Date.now()}`);
       const data = await response.json();
       if (data.success) {
         setTests(data.tests);
@@ -241,16 +315,33 @@ const HRTestManager = () => {
     return platformType !== 'custom';
   };
 
-  const deleteTest = async (testId) => {
-    if (!confirm('Are you sure you want to delete (archive) this test?')) return;
+  const deleteTest = async (testId, permanent = false) => {
+    const action = permanent ? 'permanently delete' : 'archive';
+    const warning = permanent
+      ? 'WARNING: This will permanently remove the test and ALL associated data (questions, results, candidates). This action cannot be undone.'
+      : 'This will archive the test. You can restore it later (if implemented) but invites will be blocked.';
+
+    if (!confirm(`Are you sure you want to ${action} this test?\n\n${warning}`)) return;
+
     try {
-      const response = await fetch(`${API_BASE_URL}/tests/${testId}`, { method: 'DELETE' });
+      const url = permanent
+        ? `${API_BASE_URL}/tests/${testId}?permanent=true`
+        : `${API_BASE_URL}/tests/${testId}`;
+
+      const response = await fetch(url, { method: 'DELETE' });
       const data = await response.json();
       if (data.success) {
-        // Refresh list
+        // Optimistically remove from state immediately
+        setTests(prevTests => prevTests.filter(t => {
+          const tId = t.id || t[0];
+          return tId !== testId;
+        }));
+
+        // Refresh list from server to be sure
         await loadTests();
+        alert(permanent ? 'Test permanently deleted' : 'Test archived');
       } else {
-        alert('Failed to delete test: ' + data.error);
+        alert(`Failed to ${action} test: ` + data.error);
       }
     } catch (e) {
       console.error('Error deleting test:', e);
@@ -383,11 +474,11 @@ const HRTestManager = () => {
   };
 
   const fetchResultsFromAPI = async (testId) => {
-    // Only fetch results for Codeforces tests
-    if (!isCodeforcesTest(testId)) {
-      alert('Results fetching is only available for Codeforces tests.');
-      return;
-    }
+    // Allow fetching results for all tests (custom tests might have CF questions)
+    // if (!isCodeforcesTest(testId)) {
+    //   alert('Results fetching is only available for Codeforces tests.');
+    //   return;
+    // }
 
     setLoading(true);
     try {
@@ -417,13 +508,14 @@ const HRTestManager = () => {
   };
 
   const fetchTestResults = async (testId) => {
-    // Only fetch results for Codeforces tests
-    if (!isCodeforcesTest(testId)) {
-      alert('Results viewing is only available for Codeforces tests.');
-      return;
-    }
+    // Allow viewing results for all tests
+    // if (!isCodeforcesTest(testId)) {
+    //   alert('Results viewing is only available for Codeforces tests.');
+    //   return;
+    // }
 
     setLoading(true);
+    setSelectedTestId(testId);
     try {
       // First fetch results from Codeforces if needed
       const fetchResponse = await fetch(`${API_BASE_URL}/tests/${testId}/fetch-results`, {
@@ -485,22 +577,13 @@ const HRTestManager = () => {
     setSelectedCandidate(candidate);
 
     try {
-      // Use the bulk analysis endpoint
-      const response = await fetch(`${API_BASE_URL}/tests/${testId}/candidate-analysis`);
+      // Use the singular analysis endpoint with report type parameters
+      const response = await fetch(`${API_BASE_URL}/tests/${testId}/candidate/${candidate.id}/analysis?report_type=${reportType}&job_role=${encodeURIComponent(jobRole)}`);
       const data = await response.json();
 
       if (data.success) {
-        // Find the analysis for this specific candidate
-        const candidateAnalysis = data.analyses.find(analysis =>
-          analysis.candidate_info.username === candidate.username
-        );
-
-        if (candidateAnalysis) {
-          setCandidateAnalysis(candidateAnalysis);
-          setShowAnalysisModal(true);
-        } else {
-          alert('Analysis not found for this candidate');
-        }
+        setCandidateAnalysis(data.analysis);
+        setShowAnalysisModal(true);
       } else {
         alert('Error fetching analysis: ' + data.error);
       }
@@ -966,7 +1049,13 @@ const HRTestManager = () => {
         <TabsContent value="manage" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Manage Tests</CardTitle>
+              <div className="flex justify-between items-center">
+                <CardTitle>Manage Tests</CardTitle>
+                <Button variant="outline" size="sm" onClick={loadTests} disabled={loading}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh List
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <Table>
@@ -1013,40 +1102,50 @@ const HRTestManager = () => {
                           <div className="flex space-x-2">
                             <Button
                               size="sm"
-                              onClick={() => sendTestInvitations(testId)}
+                              onClick={() => {
+                                if (status === 'archived') {
+                                  alert('This test is ended and will not send the emails');
+                                  return;
+                                }
+                                sendTestInvitations(testId);
+                              }}
                             >
                               <Send className="h-4 w-4 mr-1" />
                               Send Invites
                             </Button>
-                            {(platformType !== 'custom') && (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => fetchResultsFromAPI(testId)}
-                                  disabled={loading}
-                                >
-                                  <RefreshCw className="h-4 w-4 mr-1" />
-                                  Fetch Results
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    setActiveTab('results');
-                                    fetchTestResults(testId);
-                                  }}
-                                  disabled={loading}
-                                >
-                                  <Download className="h-4 w-4 mr-1" />
-                                  View Results
-                                </Button>
-                              </>
-                            )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => fetchResultsFromAPI(testId)}
+                              disabled={loading}
+                            >
+                              <RefreshCw className="h-4 w-4 mr-1" />
+                              Fetch Results
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setActiveTab('results');
+                                fetchTestResults(testId);
+                              }}
+                              disabled={loading}
+                            >
+                              <Download className="h-4 w-4 mr-1" />
+                              View Results
+                            </Button>
                             <Button
                               size="sm"
                               variant="destructive"
-                              onClick={() => deleteTest(testId)}
+                              onClick={() => deleteTest(testId, false)}
+                            >
+                              Archive
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="bg-red-700 hover:bg-red-800"
+                              onClick={() => deleteTest(testId, true)}
                             >
                               Delete
                             </Button>
@@ -1064,7 +1163,29 @@ const HRTestManager = () => {
         <TabsContent value="results" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Test Results</CardTitle>
+              <div className="flex justify-between items-center">
+                <CardTitle>Test Results</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Select
+                    onValueChange={(testId) => fetchTestResults(testId)}
+                  >
+                    <SelectTrigger className="w-[250px]">
+                      <SelectValue placeholder="Select a test to view results" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tests.map(test => {
+                        const tId = test.id || test[0];
+                        const tName = test.test_name || test[1];
+                        return (
+                          <SelectItem key={tId} value={tId.toString()}>
+                            {tName}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -1074,7 +1195,7 @@ const HRTestManager = () => {
                 </div>
               ) : testResults.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
-                  No results available. Select a Codeforces test to view results.
+                  No results available. Select a test above to view results.
                   <p className="text-sm mt-2">Results are only available for Codeforces platform tests.</p>
                 </div>
               ) : (
@@ -1125,7 +1246,7 @@ const HRTestManager = () => {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => getCandidateAnalysis(result, testResults[0]?.testId || 1)}
+                            onClick={() => getCandidateAnalysis(result, selectedTestId)}
                             disabled={analysisLoading}
                           >
                             {analysisLoading ? (
@@ -1156,6 +1277,32 @@ const HRTestManager = () => {
                   <Brain className="h-6 w-6 mr-2 text-blue-600" />
                   AI Performance Analysis
                 </h2>
+                <div className="flex gap-2 items-center mr-4">
+                  <Select value={reportType} onValueChange={setReportType}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Report Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="general">General Report</SelectItem>
+                      <SelectItem value="job_specific">Job Specific Report</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {reportType === 'job_specific' && (
+                    <Input
+                      placeholder="Job Role"
+                      value={jobRole}
+                      onChange={(e) => setJobRole(e.target.value)}
+                      className="w-[200px]"
+                    />
+                  )}
+                  <Button
+                    size="sm"
+                    onClick={() => getCandidateAnalysis(selectedCandidate, selectedTestId)}
+                    disabled={analysisLoading}
+                  >
+                    {analysisLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Regenerate'}
+                  </Button>
+                </div>
                 <Button
                   variant="outline"
                   onClick={() => setShowAnalysisModal(false)}
@@ -1164,149 +1311,204 @@ const HRTestManager = () => {
                 </Button>
               </div>
 
-              {/* Candidate Info */}
-              <div className="mb-6">
-                <h3 className="text-lg font-semibold mb-3">Candidate Information</h3>
-                <div className="grid grid-cols-2 gap-4">
+              {/* New Scorecard Design */}
+              <div className="space-y-6">
+                {/* Header Section */}
+                <div className="flex items-start justify-between bg-slate-50 p-6 rounded-xl border border-slate-100">
                   <div>
-                    <p className="text-sm text-gray-600">Username</p>
-                    <p className="font-medium">{candidateAnalysis.candidate_info.username}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Email</p>
-                    <p className="font-medium">{candidateAnalysis.candidate_info.email}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Completion Rate</p>
-                    <p className="font-medium">{candidateAnalysis.candidate_info.completion_rate}%</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Problems Solved</p>
-                    <p className="font-medium">{candidateAnalysis.candidate_info.solved_questions}/{candidateAnalysis.candidate_info.total_questions}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Performance Score */}
-              <div className="mb-6">
-                <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold">Overall Performance Score</h3>
-                    <div className="flex items-center space-x-2">
-                      <Star className="h-5 w-5 text-yellow-500" />
-                      <span className="text-2xl font-bold text-blue-600">
-                        {candidateAnalysis.performance_score}/100
-                      </span>
+                    <h3 className="text-2xl font-bold text-slate-900">{candidateAnalysis.candidate_info.username}</h3>
+                    <p className="text-slate-500">{candidateAnalysis.candidate_info.email}</p>
+                    <div className="flex gap-4 mt-4">
+                      <div className="bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm">
+                        <p className="text-xs text-slate-500 uppercase font-semibold">Solved</p>
+                        <p className="text-lg font-bold text-slate-900">
+                          {candidateAnalysis.candidate_info.solved_questions}/{candidateAnalysis.candidate_info.total_questions}
+                        </p>
+                      </div>
+                      <div className="bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm">
+                        <p className="text-xs text-slate-500 uppercase font-semibold">Success Rate</p>
+                        <p className="text-lg font-bold text-slate-900">
+                          {candidateAnalysis.codeforces_data?.success_rate || 0}%
+                        </p>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
-                    <div
-                      className="bg-gradient-to-r from-blue-500 to-purple-500 h-3 rounded-full transition-all duration-500"
-                      style={{ width: `${candidateAnalysis.performance_score}%` }}
-                    ></div>
+                  <div className="text-center">
+                    <div className="relative inline-flex items-center justify-center">
+                      <svg className="w-24 h-24 transform -rotate-90">
+                        <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-slate-200" />
+                        <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-blue-600"
+                          strokeDasharray={251.2}
+                          strokeDashoffset={251.2 - (251.2 * (candidateAnalysis.performance_score || 0)) / 100}
+                        />
+                      </svg>
+                      <span className="absolute text-2xl font-bold text-slate-900">{candidateAnalysis.performance_score}</span>
+                    </div>
+                    <p className="text-sm font-medium text-blue-600 mt-1">{candidateAnalysis.performance_level}</p>
+                  </div>
+                </div>
+
+                {/* Main Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Left Column: Strengths & Weaknesses */}
+                  <div className="space-y-6">
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                      <h4 className="text-lg font-semibold flex items-center gap-2 mb-4 text-slate-900">
+                        <TrendingUp className="w-5 h-5 text-green-500" /> Key Strengths
+                      </h4>
+                      <ul className="space-y-3">
+                        {candidateAnalysis.strengths?.map((item, i) => (
+                          <li key={i} className="flex items-start gap-3 text-sm text-slate-600">
+                            <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                      <h4 className="text-lg font-semibold flex items-center gap-2 mb-4 text-slate-900">
+                        <AlertCircle className="w-5 h-5 text-red-500" /> Areas for Improvement
+                      </h4>
+                      <ul className="space-y-3">
+                        {candidateAnalysis.areas_for_improvement?.map((item, i) => (
+                          <li key={i} className="flex items-start gap-3 text-sm text-slate-600">
+                            <XCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
 
-                  <div className="flex items-center space-x-2">
-                    <Target className="h-4 w-4 text-gray-600" />
-                    <span className="text-sm text-gray-600">
-                      Performance Level: <span className="font-semibold text-gray-900">{candidateAnalysis.performance_level}</span>
-                    </span>
+                  {/* Right Column: Skills & Recommendation */}
+                  <div className="space-y-6">
+                    {/* Recommendation Alert */}
+                    <div className={`p-6 rounded-xl border ${candidateAnalysis.recommendations?.[0]?.includes('Do Not') ? 'bg-red-50 border-red-200' :
+                      candidateAnalysis.recommendations?.[0]?.includes('Reservations') ? 'bg-yellow-50 border-yellow-200' :
+                        'bg-green-50 border-green-200'
+                      }`}>
+                      <h4 className="text-lg font-semibold mb-2 flex items-center gap-2">
+                        <Target className="w-5 h-5" /> Recommendation
+                      </h4>
+                      <p className="font-medium text-lg">
+                        {candidateAnalysis.recommendations?.[0] || "Review Required"}
+                      </p>
+                    </div>
+
+                    {/* Technical Skills */}
+                    {candidateAnalysis.structured_analysis?.technical_skills && (
+                      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                        <h4 className="text-lg font-semibold flex items-center gap-2 mb-4 text-slate-900">
+                          <Code className="w-5 h-5 text-blue-500" /> Technical Skills
+                        </h4>
+                        <div className="flex flex-wrap gap-2">
+                          {Object.entries(candidateAnalysis.structured_analysis.technical_skills).map(([skill, level]) => (
+                            <span key={skill} className="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-sm font-medium border border-slate-200">
+                              {skill}: <span className="text-blue-600">{level}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Job Fit (if available) */}
+                    {candidateAnalysis.structured_analysis?.job_fit_analysis && (
+                      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                        <h4 className="text-lg font-semibold flex items-center gap-2 mb-4 text-slate-900">
+                          <Briefcase className="w-5 h-5 text-purple-500" /> Job Fit Analysis
+                        </h4>
+                        <div className="space-y-3 text-sm">
+                          <div>
+                            <p className="font-medium text-slate-900">Skills Match</p>
+                            <p className="text-slate-600">{candidateAnalysis.structured_analysis.job_fit_analysis.skills_match}</p>
+                          </div>
+                          <div>
+                            <p className="font-medium text-slate-900">Integrity Check</p>
+                            <p className="text-slate-600">{candidateAnalysis.structured_analysis.job_fit_analysis.integrity_check}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Deep Dive Section */}
+                {candidateAnalysis.structured_analysis?.psychometric_profile && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Psychometric Profile */}
+                    <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
+                      <h4 className="text-lg font-semibold mb-4 text-slate-900 flex items-center gap-2">
+                        <Brain className="w-5 h-5 text-indigo-600" /> Psychometric Profile
+                      </h4>
+                      <div className="space-y-4">
+                        {Object.entries(candidateAnalysis.structured_analysis.psychometric_profile).map(([key, value]) => (
+                          <div key={key}>
+                            <p className="text-xs text-slate-500 uppercase font-semibold mb-1">{key.replace(/_/g, ' ')}</p>
+                            <p className="font-medium text-slate-900">{value}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Code Quality */}
+                    <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
+                      <h4 className="text-lg font-semibold mb-4 text-slate-900 flex items-center gap-2">
+                        <Code className="w-5 h-5 text-blue-600" /> Code Quality
+                      </h4>
+                      <div className="space-y-4">
+                        {candidateAnalysis.structured_analysis.code_quality && Object.entries(candidateAnalysis.structured_analysis.code_quality).map(([key, value]) => (
+                          <div key={key}>
+                            <div className="flex justify-between mb-1">
+                              <span className="text-sm font-medium text-slate-700 capitalize">{key}</span>
+                              <span className="text-sm font-bold text-slate-900">{value}/10</span>
+                            </div>
+                            <div className="w-full bg-slate-200 rounded-full h-2">
+                              <div
+                                className="bg-blue-600 h-2 rounded-full"
+                                style={{ width: `${value * 10}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Growth Potential */}
+                    <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
+                      <h4 className="text-lg font-semibold mb-4 text-slate-900 flex items-center gap-2">
+                        <TrendingUp className="w-5 h-5 text-green-600" /> Growth Potential
+                      </h4>
+                      <div className="space-y-4">
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase font-semibold mb-1">Trajectory</p>
+                          <p className="font-medium text-slate-900">{candidateAnalysis.structured_analysis.growth_potential?.trajectory}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase font-semibold mb-2">Recommended Next Steps</p>
+                          <ul className="space-y-2">
+                            {candidateAnalysis.structured_analysis.growth_potential?.next_steps?.map((step, i) => (
+                              <li key={i} className="text-sm text-slate-600 flex items-start gap-2">
+                                <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1.5 shrink-0"></div>
+                                {step}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Detailed Summary */}
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                  <h4 className="text-lg font-semibold mb-4 text-slate-900">Detailed Analysis</h4>
+                  <div className="prose prose-slate max-w-none text-slate-600">
+                    <p>{candidateAnalysis.llm_analysis}</p>
                   </div>
                 </div>
               </div>
-
-              {/* Difficulty Analysis */}
-              {candidateAnalysis.difficulty_analysis && (
-                <div className="mb-6">
-                  <h3 className="text-lg font-semibold mb-3">Performance by Difficulty</h3>
-                  <div className="grid grid-cols-3 gap-4">
-                    {Object.entries(candidateAnalysis.difficulty_analysis).map(([difficulty, stats]) => (
-                      <div key={difficulty} className="bg-gray-50 rounded-lg p-4">
-                        <h4 className="font-medium capitalize mb-2">{difficulty}</h4>
-                        <div className="text-2xl font-bold text-blue-600 mb-1">
-                          {stats.solved}/{stats.total}
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          {stats.percentage}% success rate
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Insights */}
-              {candidateAnalysis.insights && candidateAnalysis.insights.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="text-lg font-semibold mb-3 flex items-center">
-                    <TrendingUp className="h-5 w-5 mr-2 text-green-600" />
-                    Key Insights
-                  </h3>
-                  <div className="space-y-2">
-                    {candidateAnalysis.insights.map((insight, index) => (
-                      <div key={index} className="flex items-start space-x-2 p-3 bg-green-50 rounded-lg">
-                        <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                        <p className="text-sm text-green-800">{insight}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Strengths */}
-              {candidateAnalysis.strengths && candidateAnalysis.strengths.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="text-lg font-semibold mb-3 flex items-center">
-                    <Star className="h-5 w-5 mr-2 text-yellow-600" />
-                    Strengths
-                  </h3>
-                  <div className="space-y-2">
-                    {candidateAnalysis.strengths.map((strength, index) => (
-                      <div key={index} className="flex items-start space-x-2 p-3 bg-yellow-50 rounded-lg">
-                        <Star className="h-4 w-4 text-yellow-500 mt-0.5 flex-shrink-0" />
-                        <p className="text-sm text-yellow-800">{strength}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Areas for Improvement */}
-              {candidateAnalysis.areas_for_improvement && candidateAnalysis.areas_for_improvement.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="text-lg font-semibold mb-3 flex items-center">
-                    <AlertCircle className="h-5 w-5 mr-2 text-orange-600" />
-                    Areas for Improvement
-                  </h3>
-                  <div className="space-y-2">
-                    {candidateAnalysis.areas_for_improvement.map((area, index) => (
-                      <div key={index} className="flex items-start space-x-2 p-3 bg-orange-50 rounded-lg">
-                        <AlertCircle className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />
-                        <p className="text-sm text-orange-800">{area}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Recommendations */}
-              {candidateAnalysis.recommendations && candidateAnalysis.recommendations.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="text-lg font-semibold mb-3 flex items-center">
-                    <Target className="h-5 w-5 mr-2 text-blue-600" />
-                    Recommendations
-                  </h3>
-                  <div className="space-y-2">
-                    {candidateAnalysis.recommendations.map((recommendation, index) => (
-                      <div key={index} className="flex items-start space-x-2 p-3 bg-blue-50 rounded-lg">
-                        <Target className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
-                        <p className="text-sm text-blue-800">{recommendation}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {/* Codeforces Data */}
               {candidateAnalysis.codeforces_data && (

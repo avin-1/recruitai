@@ -254,6 +254,15 @@ const InterviewScheduler = () => {
           content: data.response,
           slots: data.slots
         }]);
+
+        // Handle Agent Actions
+        if (data.action === 'REMOVE_CANDIDATE' && data.data?.email) {
+          // Small delay to let the message appear first
+          setTimeout(() => {
+            handleReject(data.data.email);
+          }, 500);
+        }
+
       } else {
         setMessages(prev => [...prev, { role: 'system', content: 'Sorry, I encountered an error.' }]);
       }

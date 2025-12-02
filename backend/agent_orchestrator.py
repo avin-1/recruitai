@@ -5,9 +5,10 @@ import os
 import json
 import time
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TypedDict, Any
 from openai import OpenAI
 from dotenv import load_dotenv
+from langgraph.graph import StateGraph, END
 
 load_dotenv()
 
@@ -73,10 +74,10 @@ class AIAgent:
         
         try:
             # Try to get custom prompt from prompt manager
-            prompt_manager = get_prompt_manager()
+            # prompt_manager = get_prompt_manager() # Commented out as it's not imported/defined in this file context
             custom_prompt = None
-            if prompt_manager:
-                custom_prompt = prompt_manager.get_prompt(self.name, 'reasoning')
+            # if prompt_manager:
+            #     custom_prompt = prompt_manager.get_prompt(self.name, 'reasoning')
             
             # Use custom prompt if available, otherwise use default
             if custom_prompt:
@@ -102,6 +103,31 @@ Provide a brief, clear explanation (1-2 sentences) of your reasoning and decisio
             return f"Analyzed {task} using internal logic. ({str(e)[:50]})"
 
 
+# --- LangGraph States ---
+
+class ResumeState(TypedDict):
+    resume_text: str
+    job_description: str
+    job_id: str
+    result: Dict
+
+class ShortlistState(TypedDict):
+    candidate_data: Dict
+    test_questions: List[Dict]
+    result: Dict
+
+class SchedulingState(TypedDict):
+    availability_slots: List[Dict]
+    candidate_count: int
+    result: List[Dict]
+
+class JDState(TypedDict):
+    file_path: str
+    result: Dict
+
+
+# --- Agents with LangGraph ---
+
 class ResumeMatchingAgent(AIAgent):
     """Autonomous agent for resume-job matching"""
     
@@ -110,9 +136,19 @@ class ResumeMatchingAgent(AIAgent):
             "Resume and Matching Agent",
             "automatically matches resumes to job descriptions using semantic analysis and LLM scoring"
         )
+        # Initialize LangGraph
+        builder = StateGraph(ResumeState)
+        builder.add_node("analyze", self._analyze_node)
+        builder.set_entry_point("analyze")
+        builder.add_edge("analyze", END)
+        self.graph = builder.compile()
     
-    def match_resume(self, resume_text: str, job_description: str, job_id: str) -> Dict:
-        """Autonomously match resume to job with reasoning"""
+    def _analyze_node(self, state: ResumeState) -> Dict:
+        """LangGraph node for analysis"""
+        resume_text = state['resume_text']
+        job_description = state['job_description']
+        job_id = state['job_id']
+        
         self.notify(
             f"🔄 Analyzing resume against job {job_id}...",
             'processing'
@@ -142,10 +178,23 @@ class ResumeMatchingAgent(AIAgent):
         )
         
         return {
-            'score': score,
-            'decision': decision,
-            'reasoning': reasoning
+            "result": {
+                'score': score,
+                'decision': decision,
+                'reasoning': reasoning
+            }
         }
+
+    def match_resume(self, resume_text: str, job_description: str, job_id: str) -> Dict:
+        """Autonomously match resume to job with reasoning"""
+        inputs = {
+            "resume_text": resume_text,
+            "job_description": job_description,
+            "job_id": job_id,
+            "result": {}
+        }
+        output = self.graph.invoke(inputs)
+        return output['result']
 
 
 class ShortlistingAgent(AIAgent):
@@ -156,9 +205,18 @@ class ShortlistingAgent(AIAgent):
             "Shortlisting Agent",
             "autonomously evaluates candidate test performance and recommends shortlisting decisions"
         )
+        # Initialize LangGraph
+        builder = StateGraph(ShortlistState)
+        builder.add_node("evaluate", self._evaluate_node)
+        builder.set_entry_point("evaluate")
+        builder.add_edge("evaluate", END)
+        self.graph = builder.compile()
     
-    def evaluate_candidate(self, candidate_data: Dict, test_questions: List[Dict]) -> Dict:
-        """Autonomously evaluate candidate for shortlisting"""
+    def _evaluate_node(self, state: ShortlistState) -> Dict:
+        """LangGraph node for evaluation"""
+        candidate_data = state['candidate_data']
+        test_questions = state['test_questions']
+        
         email = candidate_data.get('email', 'Unknown')
         self.notify(
             f"🧠 Evaluating candidate {email} for shortlisting...",
@@ -191,10 +249,22 @@ class ShortlistingAgent(AIAgent):
         )
         
         return {
-            'completion_rate': completion_rate,
-            'decision': decision,
-            'reasoning': reasoning
+            "result": {
+                'completion_rate': completion_rate,
+                'decision': decision,
+                'reasoning': reasoning
+            }
         }
+
+    def evaluate_candidate(self, candidate_data: Dict, test_questions: List[Dict]) -> Dict:
+        """Autonomously evaluate candidate for shortlisting"""
+        inputs = {
+            "candidate_data": candidate_data,
+            "test_questions": test_questions,
+            "result": {}
+        }
+        output = self.graph.invoke(inputs)
+        return output['result']
 
 
 class InterviewSchedulingAgent(AIAgent):
@@ -205,9 +275,18 @@ class InterviewSchedulingAgent(AIAgent):
             "Interview Scheduler Agent",
             "autonomously schedules interviews by analyzing HR calendar availability and optimizing time slots"
         )
+        # Initialize LangGraph
+        builder = StateGraph(SchedulingState)
+        builder.add_node("schedule", self._schedule_node)
+        builder.set_entry_point("schedule")
+        builder.add_edge("schedule", END)
+        self.graph = builder.compile()
     
-    def propose_best_slots(self, availability_slots: List[Dict], candidate_count: int) -> List[Dict]:
-        """Autonomously propose best interview slots"""
+    def _schedule_node(self, state: SchedulingState) -> Dict:
+        """LangGraph node for scheduling"""
+        availability_slots = state['availability_slots']
+        candidate_count = state['candidate_count']
+        
         self.notify(
             f"📅 Analyzing {len(availability_slots)} available slots for {candidate_count} candidates...",
             'processing'
@@ -229,7 +308,17 @@ class InterviewSchedulingAgent(AIAgent):
             details={'slots': best_slots, 'candidate_count': candidate_count}
         )
         
-        return best_slots
+        return {"result": best_slots}
+
+    def propose_best_slots(self, availability_slots: List[Dict], candidate_count: int) -> List[Dict]:
+        """Autonomously propose best interview slots"""
+        inputs = {
+            "availability_slots": availability_slots,
+            "candidate_count": candidate_count,
+            "result": []
+        }
+        output = self.graph.invoke(inputs)
+        return output['result']
 
 
 class JobDescriptionAgent(AIAgent):
@@ -240,9 +329,17 @@ class JobDescriptionAgent(AIAgent):
             "Job Description Agent",
             "automatically parses job descriptions from PDFs and extracts structured information"
         )
+        # Initialize LangGraph
+        builder = StateGraph(JDState)
+        builder.add_node("parse", self._parse_node)
+        builder.set_entry_point("parse")
+        builder.add_edge("parse", END)
+        self.graph = builder.compile()
     
-    def parse_job_description(self, file_path: str) -> Dict:
-        """Autonomously parse job description from PDF"""
+    def _parse_node(self, state: JDState) -> Dict:
+        """LangGraph node for parsing"""
+        file_path = state['file_path']
+        
         self.notify(
             f"📄 Parsing job description from {file_path}...",
             'processing'
@@ -278,9 +375,11 @@ class JobDescriptionAgent(AIAgent):
             )
             
             return {
-                'success': True,
-                'result': result,
-                'reasoning': reasoning
+                "result": {
+                    'success': True,
+                    'result': result,
+                    'reasoning': reasoning
+                }
             }
         except Exception as e:
             error_msg = str(e)
@@ -290,10 +389,21 @@ class JobDescriptionAgent(AIAgent):
                 reasoning=f"Error parsing job description: {error_msg}"
             )
             return {
-                'success': False,
-                'error': error_msg,
-                'reasoning': f"Error: {error_msg}"
+                "result": {
+                    'success': False,
+                    'error': error_msg,
+                    'reasoning': f"Error: {error_msg}"
+                }
             }
+
+    def parse_job_description(self, file_path: str) -> Dict:
+        """Autonomously parse job description from PDF"""
+        inputs = {
+            "file_path": file_path,
+            "result": {}
+        }
+        output = self.graph.invoke(inputs)
+        return output['result']
 
 
 # Global agents

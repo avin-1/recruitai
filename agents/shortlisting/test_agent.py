@@ -23,21 +23,42 @@ class TestGenerationAgent(AIAgent):
             'processing'
         )
         
-        prompt = f"""User Request: "{topic}"
-        
-        Task: Generate {count} {difficulty} {type} questions based on the request above.
-        - If the request is a topic (e.g. "Python"), generate questions about that topic.
-        - If the request is a specific instruction (e.g. "Give me questions about decorators"), follow that instruction.
-        
-        Format the output as a JSON array of objects. Each object must have:
-        - "question": The question text
-        - "options": An array of 4 options (strings)
-        - "correct_answer": The correct option (string, must match one of the options exactly)
-        - "explanation": Brief explanation of the answer
-        
-        Ensure the questions are high quality and relevant.
-        Output ONLY the JSON array. Do not add any markdown formatting or extra text.
-        """
+        # Get dynamic prompt
+        try:
+            from prompt_manager import PromptManager
+            prompt_manager = PromptManager()
+            template = prompt_manager.get_prompt("Test Generation Agent")
+        except Exception as e:
+            print(f"Error loading prompt: {e}")
+            # Fallback to hardcoded default if manager fails
+            template = """User Request: "{topic}"
+            
+            Task: Generate {count} {difficulty} {type} questions based on the request above.
+            - If the request is a topic (e.g. "Python"), generate questions about that topic.
+            - If the request is a specific instruction (e.g. "Give me questions about decorators"), follow that instruction.
+            
+            Format the output as a JSON array of objects. Each object must have:
+            - "question": The question text
+            - "options": An array of 4 options (strings)
+            - "correct_answer": The correct option (string, must match one of the options exactly)
+            - "explanation": Brief explanation of the answer
+            
+            Ensure the questions are high quality and relevant.
+            Output ONLY the JSON array. Do not add any markdown formatting or extra text.
+            """
+
+        # Format the template with current variables
+        # Using .format() but handling potential missing keys safely
+        try:
+            prompt = template.format(
+                topic=topic,
+                count=count,
+                difficulty=difficulty,
+                type=type
+            )
+        except KeyError as e:
+            print(f"Prompt formatting error (missing key {e}). Falling back to simple string.")
+            prompt = f"{template}\n\nContext: {topic}, {count} questions, {difficulty}, {type}"
         
         try:
             if not self.client:
@@ -57,14 +78,16 @@ class TestGenerationAgent(AIAgent):
             content = response.choices[0].message.content.strip()
             
             # Clean up potential markdown code blocks
-            if content.startswith("```json"):
-                content = content[7:]
-            if content.startswith("```"):
-                content = content[3:]
-            if content.endswith("```"):
-                content = content[:-3]
+            content = self._clean_json_string(content)
             
-            questions = json.loads(content.strip())
+            try:
+                questions = json.loads(content)
+            except json.JSONDecodeError as e:
+                print(f"JSON Parse Error: {e}")
+                print(f"Raw Content: {content}")
+                # Try one more time with aggressive repair
+                content = self._repair_json(content)
+                questions = json.loads(content)
             
             self.notify(
                 f"✅ Generated {len(questions)} questions on '{topic}'",
@@ -81,6 +104,49 @@ class TestGenerationAgent(AIAgent):
             )
             print(f"Error generating questions: {e}")
             return self._get_fallback_questions(topic, count)
+
+    def _clean_json_string(self, content: str) -> str:
+        """Basic cleanup of markdown and whitespace"""
+        content = content.strip()
+        if content.startswith("```json"):
+            content = content[7:]
+        elif content.startswith("```"):
+            content = content[3:]
+        if content.endswith("```"):
+            content = content[:-3]
+        return content.strip()
+
+    def _repair_json(self, content: str) -> str:
+        """Aggressive JSON repair for common LLM errors"""
+        import re
+        # Fix invalid escape sequences (e.g. \s, \c, \e which are not valid JSON escapes)
+        # JSON only allows \", \\, \/, \b, \f, \n, \r, \t, \uXXXX
+        # We want to escape backslashes that are NOT followed by these valid characters
+        
+        # This regex finds backslashes not followed by valid escape chars
+        # and replaces them with double backslashes
+        # Valid: " \ / b f n r t u
+        
+        # Replace \' with ' (valid in JS but not JSON)
+        content = content.replace("\\'", "'")
+        
+        # Fix: replace single backslashes that are likely meant to be literal
+        # This is hard to do perfectly with regex, but we can try to fix common ones
+        # or just escape ALL backslashes that aren't part of a valid sequence.
+        
+        # Simple approach: If it fails, it's often because of things like "C:\Path" -> "C:\\Path"
+        # or LaTeX like "\alpha" -> "\\alpha"
+        
+        # For now, let's try to fix the specific error "Invalid \escape"
+        # This usually means a backslash followed by a char that isn't a valid escape.
+        
+        def replace_invalid_escape(match):
+            return "\\\\" + match.group(1)
+            
+        # Find \ followed by anything that IS NOT " \ / b f n r t u
+        content = re.sub(r'\\([^"\\/bfnrtu])', replace_invalid_escape, content)
+        
+        return content
 
     def _get_fallback_questions(self, topic: str, count: int) -> List[Dict]:
         """Return dummy questions if LLM fails"""

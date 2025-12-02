@@ -48,6 +48,8 @@ import {
   Send
 } from 'lucide-react';
 import { SHORTLISTING_API_BASE } from '@/lib/apiConfig';
+import 'katex/dist/katex.min.css';
+import Latex from 'react-latex-next';
 
 const API_BASE_URL = SHORTLISTING_API_BASE;
 
@@ -269,7 +271,7 @@ const CandidateTest = () => {
               <span className="bg-blue-100 text-blue-700 w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0">
                 {index + 1}
               </span>
-              {question.question}
+              <Latex>{question.question}</Latex>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -282,7 +284,7 @@ const CandidateTest = () => {
                 <div key={optIdx} className="flex items-center space-x-2 border p-3 rounded-lg hover:bg-gray-50 transition-colors">
                   <RadioGroupItem value={opt} id={`${answerKey}_${optIdx}`} />
                   <Label htmlFor={`${answerKey}_${optIdx}`} className="flex-1 cursor-pointer font-normal">
-                    {opt}
+                    <Latex>{opt}</Latex>
                   </Label>
                 </div>
               ))}
@@ -300,7 +302,7 @@ const CandidateTest = () => {
             <span className="bg-green-100 text-green-700 w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0">
               {index + 1}
             </span>
-            {question.question}
+            <Latex>{question.question}</Latex>
           </CardTitle>
         </CardHeader>
         <CardContent>

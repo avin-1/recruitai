@@ -1,472 +1,271 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
-  CardTitle, 
-  CardDescription 
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription
 } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { RefreshCw, CheckCircle2, XCircle, Send, Eye, Play } from 'lucide-react';
-import { SETTINGS_API_BASE } from '@/lib/apiConfig';
+import {
+  Button
+} from '@/components/ui/button';
+import {
+  Textarea
+} from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
+import {
+  Alert,
+  AlertDescription
+} from '@/components/ui/alert';
+import {
+  Loader2,
+  Settings as SettingsIcon,
+  Sparkles,
+  RotateCcw,
+  Save,
+  Brain
+} from 'lucide-react';
+import { SHORTLISTING_API_BASE } from '@/lib/apiConfig';
+
+const API_BASE_URL = SHORTLISTING_API_BASE;
 
 const Settings = () => {
-  const SETTINGS_API = SETTINGS_API_BASE;
-  const [agents, setAgents] = useState([]);
-  const [selectedAgent, setSelectedAgent] = useState('');
-  const [prompts, setPrompts] = useState({});
-  const [feedbackText, setFeedbackText] = useState('');
-  const [hrEmail, setHrEmail] = useState('');
-  const [feedbackHistory, setFeedbackHistory] = useState([]);
-  const [metrics, setMetrics] = useState({});
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState({ type: '', text: '' });
-  const [selectedFeedback, setSelectedFeedback] = useState(null);
+  const [prompts, setPrompts] = useState({});
+  const [selectedAgent, setSelectedAgent] = useState("Test Generation Agent");
+  const [instruction, setInstruction] = useState("");
+  const [modifying, setModifying] = useState(false);
+  const [message, setMessage] = useState(null);
 
   useEffect(() => {
-    loadAgents();
-    loadFeedbackHistory();
-    loadMetrics();
+    fetchPrompts();
   }, []);
 
-  useEffect(() => {
-    if (selectedAgent) {
-      loadAgentPrompts(selectedAgent);
-    }
-  }, [selectedAgent]);
-
-  const loadAgents = async () => {
-    try {
-      const res = await fetch(`${SETTINGS_API}/agents`);
-      const data = await res.json();
-      if (data.success) {
-        setAgents(data.agents);
-        if (data.agents.length > 0 && !selectedAgent) {
-          setSelectedAgent(data.agents[0].name);
-        }
-      }
-    } catch (err) {
-      console.error('Error loading agents:', err);
-      setMessage({ type: 'error', text: 'Failed to load agents' });
-    }
-  };
-
-  const loadAgentPrompts = async (agentName) => {
-    try {
-      const res = await fetch(`${SETTINGS_API}/agents/${encodeURIComponent(agentName)}/prompts`);
-      const data = await res.json();
-      if (data.success) {
-        setPrompts(data.prompts || {});
-      }
-    } catch (err) {
-      console.error('Error loading prompts:', err);
-      setMessage({ type: 'error', text: 'Failed to load prompts' });
-    }
-  };
-
-  const loadFeedbackHistory = async () => {
-    try {
-      const res = await fetch(`${SETTINGS_API}/feedback`);
-      const data = await res.json();
-      if (data.success) {
-        setFeedbackHistory(data.feedback || []);
-      }
-    } catch (err) {
-      console.error('Error loading feedback:', err);
-    }
-  };
-
-  const loadMetrics = async () => {
-    try {
-      const res = await fetch(`${SETTINGS_API}/monitoring/metrics`);
-      const data = await res.json();
-      if (data.success) {
-        setMetrics(data.metrics || {});
-      }
-    } catch (err) {
-      console.error('Error loading metrics:', err);
-    }
-  };
-
-  const handleSubmitFeedback = async () => {
-    if (!selectedAgent || !feedbackText.trim()) {
-      setMessage({ type: 'error', text: 'Please select an agent and provide feedback' });
-      return;
-    }
-
+  const fetchPrompts = async () => {
     setLoading(true);
-    setMessage({ type: '', text: '' });
-
     try {
-      const res = await fetch(`${SETTINGS_API}/feedback`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agent_name: selectedAgent,
-          feedback_text: feedbackText,
-          hr_email: hrEmail
-        })
-      });
-
-      const data = await res.json();
-      
+      const response = await fetch(`${API_BASE_URL}/settings/prompts`);
+      const data = await response.json();
       if (data.success) {
-        setMessage({ type: 'success', text: 'Feedback submitted successfully! LLM suggestions generated.' });
-        setFeedbackText('');
-        setHrEmail('');
-        loadFeedbackHistory();
-        
-        // Show LLM suggestions in modal or alert
-        if (data.llm_suggestion) {
-          setSelectedFeedback({
-            ...data,
-            feedback_text: feedbackText,
-            agent_name: selectedAgent
-          });
-        }
+        setPrompts(data.prompts);
       } else {
-        setMessage({ type: 'error', text: data.error || 'Failed to submit feedback' });
+        setMessage({ type: 'error', text: 'Failed to load prompts' });
       }
-    } catch (err) {
-      console.error('Error submitting feedback:', err);
-      setMessage({ type: 'error', text: 'Failed to submit feedback' });
+    } catch (error) {
+      console.error('Error fetching prompts:', error);
+      setMessage({ type: 'error', text: 'Network error loading prompts' });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleApplyFeedback = async (feedbackId) => {
-    if (!confirm('Apply these prompt modifications to the agent?')) {
+  const handleModify = async () => {
+    if (!instruction.trim()) {
+      setMessage({ type: 'error', text: 'Please enter an instruction' });
       return;
     }
 
+    setModifying(true);
+    setMessage(null);
     try {
-      const res = await fetch(`${SETTINGS_API}/feedback/${feedbackId}/apply`, {
-        method: 'POST'
+      const response = await fetch(`${API_BASE_URL}/settings/prompts/modify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agent_name: selectedAgent,
+          instruction: instruction
+        })
       });
+      const data = await response.json();
 
-      const data = await res.json();
-      
       if (data.success) {
-        setMessage({ type: 'success', text: `Prompt modifications applied! ${data.applied_count} prompts updated.` });
-        loadAgentPrompts(selectedAgent);
-        loadFeedbackHistory();
+        setMessage({ type: 'success', text: 'Prompt updated successfully!' });
+        setInstruction("");
+        await fetchPrompts();
       } else {
-        setMessage({ type: 'error', text: data.error || 'Failed to apply modifications' });
+        setMessage({ type: 'error', text: 'Failed to update prompt: ' + data.error });
       }
-    } catch (err) {
-      console.error('Error applying feedback:', err);
-      setMessage({ type: 'error', text: 'Failed to apply modifications' });
+    } catch (error) {
+      console.error('Error modifying prompt:', error);
+      setMessage({ type: 'error', text: 'Network error modifying prompt' });
+    } finally {
+      setModifying(false);
     }
   };
 
-  const getStatusBadge = (status) => {
-    const colors = {
-      'pending': 'bg-yellow-100 text-yellow-800',
-      'suggested': 'bg-blue-100 text-blue-800',
-      'applied': 'bg-green-100 text-green-800'
-    };
-    return colors[status] || 'bg-gray-100 text-gray-800';
+  const handleReset = async () => {
+    if (!confirm('Are you sure you want to reset this prompt to its default value?')) return;
+
+    setModifying(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/settings/prompts/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agent_name: selectedAgent
+        })
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        setMessage({ type: 'success', text: 'Prompt reset to default' });
+        await fetchPrompts();
+      } else {
+        setMessage({ type: 'error', text: 'Failed to reset prompt: ' + data.error });
+      }
+    } catch (error) {
+      console.error('Error resetting prompt:', error);
+      setMessage({ type: 'error', text: 'Network error resetting prompt' });
+    } finally {
+      setModifying(false);
+    }
   };
 
+  const currentPromptData = prompts[selectedAgent] || {};
+
   return (
-    <main className="flex-1 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">⚙️ Agent Settings & Feedback</h1>
-          <p className="text-gray-600 mt-2">Monitor agent performance and provide feedback to improve AI behavior</p>
-        </div>
+    <div className="container mx-auto p-6 max-w-5xl">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold flex items-center gap-3 text-gray-900">
+          <SettingsIcon className="h-8 w-8 text-gray-700" />
+          Agent Settings
+        </h1>
+        <p className="text-gray-600 mt-2">
+          Configure and customize the behavior of your AI agents.
+        </p>
+      </div>
 
-        {message.text && (
-          <Alert className={message.type === 'error' ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}>
-            <AlertDescription className={message.type === 'error' ? 'text-red-800' : 'text-green-800'}>
-              {message.text}
-            </AlertDescription>
-          </Alert>
-        )}
-
-        <Tabs defaultValue="feedback" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="feedback">Submit Feedback</TabsTrigger>
-            <TabsTrigger value="prompts">View Prompts</TabsTrigger>
-            <TabsTrigger value="history">Feedback History</TabsTrigger>
-            <TabsTrigger value="monitoring">Monitoring</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="feedback" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Submit HR Feedback</CardTitle>
-                <CardDescription>
-                  Provide feedback about agent behavior. The LLM will analyze your feedback and suggest prompt modifications.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="agent">Select Agent</Label>
-                  <Select value={selectedAgent} onValueChange={setSelectedAgent}>
-                    <SelectTrigger id="agent">
-                      <SelectValue placeholder="Select an agent" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {agents.map((agent) => (
-                        <SelectItem key={agent.name} value={agent.name}>
-                          {agent.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="hrEmail">Your Email (Optional)</Label>
-                  <Input
-                    id="hrEmail"
-                    type="email"
-                    value={hrEmail}
-                    onChange={(e) => setHrEmail(e.target.value)}
-                    placeholder="hr@example.com"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="feedback">Feedback</Label>
-                  <Textarea
-                    id="feedback"
-                    value={feedbackText}
-                    onChange={(e) => setFeedbackText(e.target.value)}
-                    placeholder="Example: The agent is too strict in candidate evaluation. Please consider more contextual factors like experience level and test difficulty."
-                    rows={6}
-                  />
-                </div>
-
-                <Button 
-                  onClick={handleSubmitFeedback} 
-                  disabled={loading || !selectedAgent || !feedbackText.trim()}
-                  className="w-full"
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Panel: Agent Selection */}
+        <Card className="lg:col-span-1 h-fit">
+          <CardHeader>
+            <CardTitle>Select Agent</CardTitle>
+            <CardDescription>Choose an agent to configure</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {Object.keys(prompts).map(agent => (
+                <button
+                  key={agent}
+                  onClick={() => setSelectedAgent(agent)}
+                  className={`w-full text-left px-4 py-3 rounded-lg transition-colors flex items-center justify-between ${selectedAgent === agent
+                      ? 'bg-blue-50 text-blue-700 border border-blue-200 font-medium'
+                      : 'hover:bg-gray-50 text-gray-700 border border-transparent'
+                    }`}
                 >
-                  {loading ? (
+                  {agent}
+                  {prompts[agent]?.is_custom && (
+                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+                      Custom
+                    </span>
+                  )}
+                </button>
+              ))}
+              {loading && Object.keys(prompts).length === 0 && (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Right Panel: Prompt Configuration */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>System Prompt Configuration</span>
+              {currentPromptData.is_custom && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleReset}
+                  disabled={modifying}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Restore Default
+                </Button>
+              )}
+            </CardTitle>
+            <CardDescription>
+              View and modify the instructions that guide the {selectedAgent}.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {message && (
+              <Alert className={message.type === 'success' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}>
+                <AlertDescription className={message.type === 'success' ? 'text-green-800' : 'text-red-800'}>
+                  {message.text}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">Current System Prompt</label>
+              <div className="relative">
+                <Textarea
+                  value={currentPromptData.current || ''}
+                  readOnly
+                  className="min-h-[300px] font-mono text-sm bg-gray-50 text-gray-600 resize-none"
+                />
+                <div className="absolute top-2 right-2">
+                  <span className="text-xs text-gray-400 bg-white px-2 py-1 rounded border">
+                    Read-only
+                  </span>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500">
+                This prompt contains placeholders (e.g., {'{topic}'}) that are filled dynamically.
+              </p>
+            </div>
+
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 space-y-4">
+              <div className="flex items-center gap-2 text-blue-800 font-medium">
+                <Sparkles className="h-5 w-5" />
+                Modify with AI
+              </div>
+              <p className="text-sm text-blue-600">
+                Describe how you want to change the agent's behavior. The AI will rewrite the prompt for you while keeping necessary technical requirements.
+              </p>
+              <div className="flex gap-2">
+                <Textarea
+                  placeholder="e.g., 'Make the tone more formal and professional' or 'Ask harder questions'"
+                  value={instruction}
+                  onChange={(e) => setInstruction(e.target.value)}
+                  className="bg-white min-h-[80px]"
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleModify}
+                  disabled={modifying || !instruction.trim()}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {modifying ? (
                     <>
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      Processing...
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Optimizing Prompt...
                     </>
                   ) : (
                     <>
-                      <Send className="h-4 w-4 mr-2" />
-                      Submit Feedback
+                      <Brain className="h-4 w-4 mr-2" />
+                      Update Prompt
                     </>
                   )}
                 </Button>
-              </CardContent>
-            </Card>
-
-            {selectedFeedback && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>LLM Suggestions</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label>Agent:</Label>
-                    <p className="font-semibold">{selectedFeedback.agent_name}</p>
-                  </div>
-                  
-                  <div>
-                    <Label>Your Feedback:</Label>
-                    <p className="text-gray-700 whitespace-pre-wrap">{selectedFeedback.feedback_text}</p>
-                  </div>
-                  
-                  <div>
-                    <Label>LLM Analysis:</Label>
-                    <div className="bg-blue-50 border border-blue-200 rounded p-4">
-                      <p className="text-gray-800 whitespace-pre-wrap">{selectedFeedback.llm_suggestion}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <Button onClick={() => handleApplyFeedback(selectedFeedback.feedback_id)}>
-                      <Play className="h-4 w-4 mr-2" />
-                      Apply Modifications
-                    </Button>
-                    <Button variant="outline" onClick={() => setSelectedFeedback(null)}>
-                      Close
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          <TabsContent value="prompts" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Agent Prompts</CardTitle>
-                <CardDescription>Current prompts used by agents</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <Label>Select Agent</Label>
-                    <Select value={selectedAgent} onValueChange={setSelectedAgent}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select an agent" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {agents.map((agent) => (
-                          <SelectItem key={agent.name} value={agent.name}>
-                            {agent.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {Object.keys(prompts).length > 0 && (
-                    <div className="space-y-4">
-                      {Object.entries(prompts).map(([type, prompt]) => (
-                        <div key={type} className="border rounded p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <Label className="font-semibold capitalize">{type} Prompt</Label>
-                            <Badge>v{prompt.version}</Badge>
-                          </div>
-                          <div className="bg-gray-50 rounded p-3 mt-2">
-                            <pre className="text-sm whitespace-pre-wrap text-gray-800">{prompt.content}</pre>
-                          </div>
-                          <p className="text-xs text-gray-500 mt-2">
-                            Modified: {new Date(prompt.modified_at).toLocaleString()}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="history" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Feedback History</CardTitle>
-                <CardDescription>All feedback submissions and their status</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Agent</TableHead>
-                      <TableHead>Feedback</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {feedbackHistory.map((feedback) => (
-                      <TableRow key={feedback.id}>
-                        <TableCell className="font-medium">{feedback.agent_name}</TableCell>
-                        <TableCell>
-                          <div className="max-w-md">
-                            <p className="text-sm truncate">{feedback.feedback_text.substring(0, 100)}...</p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={getStatusBadge(feedback.status)}>
-                            {feedback.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {new Date(feedback.created_at).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            {feedback.llm_suggestion && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  try {
-                                    const modifiedPrompts = feedback.modified_prompt 
-                                      ? JSON.parse(feedback.modified_prompt) 
-                                      : {};
-                                    setSelectedFeedback({
-                                      ...feedback,
-                                      modified_prompts
-                                    });
-                                  } catch (e) {
-                                    setSelectedFeedback(feedback);
-                                  }
-                                }}
-                              >
-                                <Eye className="h-3 w-3 mr-1" />
-                                View
-                              </Button>
-                            )}
-                            {feedback.status === 'suggested' && !feedback.applied && (
-                              <Button
-                                size="sm"
-                                onClick={() => handleApplyFeedback(feedback.id)}
-                              >
-                                <Play className="h-3 w-3 mr-1" />
-                                Apply
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="monitoring" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Agent Performance Monitoring</CardTitle>
-                <CardDescription>Monitor agent performance metrics</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {Object.entries(metrics).map(([agentName, metric]) => (
-                    <div key={agentName} className="border rounded p-4">
-                      <h3 className="font-semibold mb-2">{agentName}</h3>
-                      <div className="grid grid-cols-3 gap-4">
-                        <div>
-                          <Label className="text-xs text-gray-500">Error Rate</Label>
-                          <p className="text-lg font-semibold">{(metric.error_rate * 100).toFixed(1)}%</p>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-gray-500">Response Time</Label>
-                          <p className="text-lg font-semibold">{metric.response_time.toFixed(2)}s</p>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-gray-500">Total Requests</Label>
-                          <p className="text-lg font-semibold">{metric.total_requests}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <Button onClick={loadMetrics} variant="outline" className="mt-4">
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Refresh Metrics
-                </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
-    </main>
+    </div>
   );
 };
 

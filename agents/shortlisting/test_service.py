@@ -218,13 +218,13 @@ The Recruitment Team
                         # Filter for this user
                         user_existing_results = {}
                         for row in existing_results_rows:
-                            if row[0] == user['email']: # candidate_email
-                                # row: email, username, question_id, solved, result_data
+                            if row[1] == user['email']: # candidate_email (index 1 now)
+                                # row: id, email, username, question_id, solved, result_data
                                 try:
                                     import ast
                                     # result_data is a string representation of a dict
-                                    data_dict = ast.literal_eval(row[4])
-                                    user_existing_results[row[2]] = data_dict
+                                    data_dict = ast.literal_eval(row[5])
+                                    user_existing_results[row[3]] = data_dict
                                 except:
                                     pass
                         
@@ -262,11 +262,12 @@ The Recruitment Team
         # Group results by user
         user_results = {}
         for row in raw_results:
-            email, username, question_id, solved, result_data = row
+            user_id, email, username, question_id, solved, result_data = row
             user_key = f"{email}_{username}"
             
             if user_key not in user_results:
                 user_results[user_key] = {
+                    'id': user_id,
                     'email': email,
                     'username': username,
                     'questions': {},
@@ -274,13 +275,19 @@ The Recruitment Team
                     'total_questions': len(test_questions)
                 }
             
-            user_results[user_key]['questions'][question_id] = {
-                'solved': solved,
-                'data': result_data
-            }
-            
-            if solved:
-                user_results[user_key]['total_solved'] += 1
+            if question_id not in user_results[user_key]['questions']:
+                user_results[user_key]['questions'][question_id] = {
+                    'solved': solved,
+                    'data': result_data
+                }
+                
+                if solved:
+                    user_results[user_key]['total_solved'] += 1
+            else:
+                # If duplicate, just update if solved is True (in case one entry says False and another True)
+                if solved and not user_results[user_key]['questions'][question_id]['solved']:
+                    user_results[user_key]['questions'][question_id]['solved'] = True
+                    user_results[user_key]['total_solved'] += 1
         
         return list(user_results.values())
     

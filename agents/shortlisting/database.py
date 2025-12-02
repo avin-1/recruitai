@@ -387,7 +387,7 @@ class DatabaseManager:
         cursor = conn.cursor()
         
         cursor.execute('''
-            SELECT u.candidate_email, u.codeforces_username, tr.question_id, tr.solved, tr.result_data
+            SELECT u.id, u.candidate_email, u.codeforces_username, tr.question_id, tr.solved, tr.result_data
             FROM userids u
             JOIN test_results tr ON u.id = tr.userid_id
             WHERE u.test_id = ?
@@ -415,5 +415,88 @@ class DatabaseManager:
         conn = self._get_connection(self.selected_candidates_db)
         cursor = conn.cursor()
         cursor.execute('UPDATE tests SET status = ? WHERE id = ?', ('archived', test_id))
+        conn.commit()
+        conn.close()
+
+    def get_test_status(self, test_id: int) -> str:
+        """Get the status of a test"""
+        conn = self._get_connection(self.selected_candidates_db)
+        cursor = conn.cursor()
+        cursor.execute('SELECT status FROM tests WHERE id = ?', (test_id,))
+        result = cursor.fetchone()
+        conn.close()
+        return result[0] if result else None
+
+    def permanently_delete_test(self, test_id: int) -> None:
+        """Permanently delete a test and all associated data"""
+        
+        # 1. Delete from test_notifications (Child of tests in selected_candidates.db)
+        conn = self._get_connection(self.selected_candidates_db)
+        cursor = conn.cursor()
+        try:
+            cursor.execute('DELETE FROM test_notifications WHERE test_id = ?', (test_id,))
+            conn.commit()
+        except Exception as e:
+            print(f"Error deleting notifications: {e}")
+        
+        # 2. Delete from tests table (Parent in selected_candidates.db)
+        # Now safe to delete as children are gone
+        try:
+            cursor.execute('DELETE FROM tests WHERE id = ?', (test_id,))
+            conn.commit()
+        except Exception as e:
+            print(f"Error deleting test: {e}")
+            raise e # Re-raise to notify caller
+        finally:
+            conn.close()
+        
+        # 3. Delete from userids table (registrations) and test_results (in userids.db)
+        # These are in a separate DB, so no FK constraint with tests table in selected_candidates.db
+        conn = self._get_connection(self.userids_db)
+        cursor = conn.cursor()
+        
+        try:
+            # Get userids for this test to delete their results
+            cursor.execute('SELECT id FROM userids WHERE test_id = ?', (test_id,))
+            user_ids = [row[0] for row in cursor.fetchall()]
+            
+            if user_ids:
+                # Delete results for these users
+                placeholders = ','.join(['?'] * len(user_ids))
+                cursor.execute(f'DELETE FROM test_results WHERE userid_id IN ({placeholders})', user_ids)
+                
+            # Delete registrations
+            cursor.execute('DELETE FROM userids WHERE test_id = ?', (test_id,))
+            conn.commit()
+        except Exception as e:
+            print(f"Error deleting user data: {e}")
+        finally:
+            conn.close()
+
+    def get_agent_prompt(self, agent_name: str) -> str:
+        """Get custom prompt for an agent, or None if not set"""
+        conn = self._get_connection(self.selected_candidates_db)
+        cursor = conn.cursor()
+        cursor.execute('SELECT prompt_text FROM agent_prompts WHERE agent_name = ?', (agent_name,))
+        result = cursor.fetchone()
+        conn.close()
+        return result[0] if result else None
+
+    def save_agent_prompt(self, agent_name: str, prompt_text: str) -> None:
+        """Save or update custom prompt for an agent"""
+        conn = self._get_connection(self.selected_candidates_db)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT OR REPLACE INTO agent_prompts (agent_name, prompt_text, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+        ''', (agent_name, prompt_text))
+        conn.commit()
+        conn.close()
+
+    def reset_agent_prompt(self, agent_name: str) -> None:
+        """Remove custom prompt for an agent (revert to default)"""
+        conn = self._get_connection(self.selected_candidates_db)
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM agent_prompts WHERE agent_name = ?', (agent_name,))
         conn.commit()
         conn.close()

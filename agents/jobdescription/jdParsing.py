@@ -12,6 +12,15 @@ load_dotenv()
 PROMPT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "promptsDB", "prompt.txt")
 LLM_MODEL = "openai/gpt-oss-20b:fireworks-ai"
 
+# Add path to import PromptManager
+import sys
+try:
+    sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'shortlisting'))
+    from prompt_manager import PromptManager
+except ImportError as e:
+    print(f"Failed to import PromptManager: {e}")
+    PromptManager = None
+
 
 # --- Helper Functions ---
 def extract_text_from_pdf(pdf_path: str) -> Optional[str]:
@@ -26,7 +35,22 @@ def extract_text_from_pdf(pdf_path: str) -> Optional[str]:
 
 
 def load_prompt() -> Optional[str]:
-    """Load the prompt from file, extracting only the actual prompt content."""
+    """Load the prompt from PromptManager or file."""
+    # Try PromptManager first
+    if PromptManager:
+        try:
+            pm = PromptManager()
+            prompt = pm.get_prompt("Job Description Agent")
+            if prompt:
+                # If it's the default prompt which includes the "Job Description: {text}" part, 
+                # we might need to be careful. 
+                # The file-based one had metadata. The DB one is just the content.
+                # Our _parse_with_llm handles the {job_description_text} replacement.
+                return prompt
+        except Exception as e:
+            print(f"Error loading from PromptManager: {e}")
+
+    # Fallback to file
     try:
         with open(PROMPT_FILE, "r", encoding="utf-8") as f:
             content = f.read()
