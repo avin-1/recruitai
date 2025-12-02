@@ -34,12 +34,10 @@ def get_shortlisting_agent():
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-from test_agent import TestGenerationAgent
-
 # Initialize services
 test_service = TestService()
 db_manager = DatabaseManager()
-test_gen_agent = TestGenerationAgent()
+# test_gen_agent = TestGenerationAgent() # Moved to lazy load
 
 # Lazy load LLM analyzer to prevent crashes during Flask reloads
 llm_analyzer = None
