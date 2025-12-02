@@ -42,7 +42,7 @@ except Exception:
 
 # Flask app
 app = Flask(__name__)
-CORS(app)  # enable CORS for all routes
+CORS(app, resources={r"/*": {"origins": "*"}})  # enable CORS for all routes
 
 # Initialize email service
 email_service = EmailService()

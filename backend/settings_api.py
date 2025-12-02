@@ -14,7 +14,7 @@ from backend.prompt_manager import prompt_manager
 from backend.monitoring_feedback_agent import monitoring_agent, feedback_agent
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 @app.route('/api/settings/agents', methods=['GET'])
 def get_agents():

@@ -32,7 +32,7 @@ def get_shortlisting_agent():
     return shortlisting_agent
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 from test_agent import TestGenerationAgent
 
