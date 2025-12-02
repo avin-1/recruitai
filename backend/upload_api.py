@@ -56,6 +56,15 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 RESUMES_FOLDER = os.path.join(BASE_DIR, "..", "agents", "resumeandmatching", "resumes")
 os.makedirs(RESUMES_FOLDER, exist_ok=True)
 
+# ---------------- Root Endpoint (Health Check) ----------------
+@app.route("/", methods=["GET"])
+def index():
+    return jsonify({
+        "status": "online",
+        "message": "REDAI Backend API is running",
+        "services": ["upload", "shortlisting", "interview", "settings"]
+    }), 200
+
 # ---------------- File Upload Endpoint ----------------
 @app.route("/upload", methods=["POST"])
 def upload_file():
