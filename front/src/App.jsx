@@ -12,6 +12,7 @@ import CandidateTest from './components/CandidateTest';
 import TestRoute from './components/TestRoute';
 import InterviewScheduler from './components/InterviewScheduler';
 import InterviewCandidates from './components/InterviewCandidates';
+import AnalyticsDashboard from './components/AnalyticsDashboard';
 
 function App() {
   return (
@@ -21,7 +22,7 @@ function App() {
         <Route path="/test/:testId" element={<CandidateTest />} />
         {/* Test route to verify routing works */}
         <Route path="/test-route" element={<TestRoute />} />
-        
+
         {/* Protected routes with Dashboard */}
         <Route path="/*" element={
           <Dashboard>
@@ -36,6 +37,7 @@ function App() {
               <Route path="/hr-tests" element={<HRTestManager />} />
               <Route path="/interviews" element={<InterviewScheduler />} />
               <Route path="/interview-candidates" element={<InterviewCandidates />} />
+              <Route path="/analytics" element={<AnalyticsDashboard />} />
             </Routes>
           </Dashboard>
         } />

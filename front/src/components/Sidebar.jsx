@@ -17,6 +17,7 @@ const Sidebar = ({ isOpen, onClose }) => {
     { path: '/hr-tests', label: 'Test Manager', icon: '🧪' },
     { path: '/interviews', label: 'Interview Scheduler', icon: '📅' },
     { path: '/interview-candidates', label: 'Interview Candidates', icon: '✅' },
+    { path: '/analytics', label: 'Analytics', icon: '📊' },
     { path: '/settings', label: 'Settings', icon: '⚙️' },
   ];
 

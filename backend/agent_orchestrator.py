@@ -167,7 +167,7 @@ class ResumeMatchingAgent(AIAgent):
             f"Calculate match score between resume and job description"
         )
         
-        threshold = 60.0
+        threshold = 50.0
         decision = "ACCEPTED" if score >= threshold else "REJECTED"
         
         self.notify(

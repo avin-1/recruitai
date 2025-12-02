@@ -31,6 +31,8 @@ def compute_score(resume_text: str, job_description_text: str, model: str, hf_to
                     {"role": "user", "content": prompt},
                 ],
                 response_format={"type": "json_object"},
+                temperature=0.0,
+                seed=42,
             )
             content = res.choices[0].message.content
             data = json.loads(content)
