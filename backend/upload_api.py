@@ -21,11 +21,17 @@ except Exception:
 import fitz  # PyMuPDF (fallback text extraction)
 
 # Load .env explicitly
-load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=True)
+# Load .env explicitly (but don't override system env vars)
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=False)
 MONGO_URI = os.getenv("MONGODB_URI")
 
 if not MONGO_URI:
-    raise ValueError("MONGODB_URI not found in .env")
+    print("CRITICAL ERROR: MONGODB_URI not found in environment!", flush=True)
+    # raise ValueError("MONGODB_URI not found in .env") # Don't crash yet, let it try
+else:
+    # Print masked URI for debugging
+    masked_uri = MONGO_URI.replace(MONGO_URI.split('@')[0], 'mongodb+srv://****:****') if '@' in MONGO_URI else '****'
+    print(f"Connecting to MongoDB with URI: {masked_uri}", flush=True)
 
 # MongoDB setup
 DB_NAME = "profiles"           # replace with your database name

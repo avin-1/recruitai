@@ -19,10 +19,21 @@ sys.path.insert(0, os.path.join(project_root, 'agents', 'interview'))
 # Import the apps
 # We need to be careful about imports to avoid circular dependencies or double initialization
 # but since they are in separate files, it should be fine.
+print("Loading upload_api...", flush=True)
 from backend.upload_api import app as upload_app
+print("Loaded upload_api.", flush=True)
+
+print("Loading shortlisting_api...", flush=True)
 from agents.shortlisting.api import app as shortlisting_app
+print("Loaded shortlisting_api.", flush=True)
+
+print("Loading interview_api...", flush=True)
 from agents.interview.api import app as interview_app
+print("Loaded interview_api.", flush=True)
+
+print("Loading settings_api...", flush=True)
 from backend.settings_api import app as settings_app
+print("Loaded settings_api.", flush=True)
 
 def application(environ, start_response):
     """
