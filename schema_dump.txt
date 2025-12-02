@@ -1,0 +1,60 @@
+
+--- Database: selected_candidates.db ---
+Table: selected_candidates
+  - id (INTEGER)
+  - job_id (TEXT)
+  - job_title (TEXT)
+  - candidate_name (TEXT)
+  - candidate_email (TEXT)
+  - selection_date (TIMESTAMP)
+  - email_sent (BOOLEAN)
+  - email_sent_date (TIMESTAMP)
+Table: sqlite_sequence
+  - name ()
+  - seq ()
+Table: tests
+  - id (INTEGER)
+  - test_name (TEXT)
+  - test_description (TEXT)
+  - questions (TEXT)
+  - created_date (TIMESTAMP)
+  - status (TEXT)
+  - platform_type (TEXT)
+  - custom_platform_name (TEXT)
+Table: test_notifications
+  - id (INTEGER)
+  - test_id (INTEGER)
+  - candidate_email (TEXT)
+  - notification_sent (BOOLEAN)
+  - sent_date (TIMESTAMP)
+  - test_link (TEXT)
+Table: agent_prompts
+  - agent_name (TEXT)
+  - prompt_text (TEXT)
+  - updated_at (TIMESTAMP)
+
+--- Database: interview.db ---
+Table: interview_candidates
+  - id (INTEGER)
+  - candidate_email (TEXT)
+  - codeforces_username (TEXT)
+  - test_id (INTEGER)
+  - approved_at (TIMESTAMP)
+Table: sqlite_sequence
+  - name ()
+  - seq ()
+Table: interview_schedules
+  - id (INTEGER)
+  - candidate_email (TEXT)
+  - interview_start (TIMESTAMP)
+  - interview_end (TIMESTAMP)
+  - hr_email (TEXT)
+  - meeting_link (TEXT)
+  - created_at (TIMESTAMP)
+Table: interview_results
+  - id (INTEGER)
+  - candidate_email (TEXT)
+  - status (TEXT)
+  - offer_letter_sent (BOOLEAN)
+  - offer_sent_at (TIMESTAMP)
+  - created_at (TIMESTAMP)

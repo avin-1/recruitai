@@ -23,7 +23,7 @@ MONGODB_URI_ENV = "MONGODB_URI"
 HF_TOKEN_ENV = "HF_TOKEN"
 
 # Matching / thresholds
-REJECTION_THRESHOLD = 70.0  # out of 100
+REJECTION_THRESHOLD = 50.0  # out of 100
 
 # ChromaDB (optional)
 CHROMA_PERSIST_DIR = os.path.join(BASE_DIR, ".chroma")
