@@ -16,7 +16,7 @@ import uuid
 import pytz
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-from backend.agent_orchestrator import scheduling_agent
+# from backend.agent_orchestrator import scheduling_agent # Moved to lazy load
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -299,6 +299,9 @@ def get_hr_availability():
     try:
         data = request.get_json() or {}
         hr_email = data.get('hr_email')
+        
+        # Lazy load agent
+        from backend.agent_orchestrator import scheduling_agent
         
         scheduling_agent.notify(
             f"📅 Fetching calendar availability for {hr_email}...",

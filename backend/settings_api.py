@@ -11,7 +11,7 @@ backend_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(backend_dir))
 
 from backend.prompt_manager import prompt_manager
-from backend.monitoring_feedback_agent import monitoring_agent, feedback_agent
+# from backend.monitoring_feedback_agent import monitoring_agent, feedback_agent # Moved to lazy load
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
@@ -65,6 +65,9 @@ def submit_feedback():
                 'success': False,
                 'error': 'agent_name and feedback_text are required'
             }), 400
+        
+        # Lazy load agents
+        from backend.monitoring_feedback_agent import monitoring_agent, feedback_agent
         
         # Process feedback through Feedback Agent
         result = feedback_agent.process_feedback(agent_name, feedback_text, hr_email)
