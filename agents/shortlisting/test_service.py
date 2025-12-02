@@ -6,7 +6,7 @@ from datetime import datetime
 import os
 from dotenv import load_dotenv
 from typing import List, Dict, Optional
-from database import DatabaseManager
+from shortlisting_database import DatabaseManager
 from codeforces_api import CodeforcesAPI
 
 load_dotenv()

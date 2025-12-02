@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import datetime
-from database import InterviewDatabase
+from interview_database import InterviewDatabase
 import os
 from google.oauth2 import service_account
 from googleapiclient.discovery import build

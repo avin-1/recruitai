@@ -4,7 +4,7 @@ Main entry point for the shortlisting test management system
 """
 
 from api import app
-from database import DatabaseManager
+from shortlisting_database import DatabaseManager
 
 def initialize_system():
     """Initialize the database and system"""

@@ -3,9 +3,9 @@ import sys
 from typing import Optional
 import openai
 
-# Add parent directory to path to import database
+# Add parent directory to path to import shortlisting_database as database
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-from agents.shortlisting.database import DatabaseManager
+from agents.shortlisting.shortlisting_database import DatabaseManager
 
 # Default Prompts (Templates)
 # Note: Using {variable} for python formatting. Literal braces must be escaped as {{ }}

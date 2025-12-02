@@ -3,7 +3,7 @@ from flask_cors import CORS
 import json
 import sqlite3
 from test_service import TestService
-from database import DatabaseManager
+from shortlisting_database import DatabaseManager
 # Don't import LLMPerformanceAnalyzer at module level - it loads large models
 # import llm_analyzer - will be imported lazily
 import datetime

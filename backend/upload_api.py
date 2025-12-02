@@ -322,13 +322,20 @@ def approve_profile():
                 # Construct URL
                 # NOTE: Instagram API requires a PUBLICLY ACCESSIBLE URL.
                 host_url = request.host_url
-                if "localhost" in host_url or "127.0.0.1" in host_url:
+                # Check if running locally (naive check)
+                is_local = "localhost" in host_url or "127.0.0.1" in host_url
+                
+                if is_local:
                     # Use a stable public placeholder for testing
                     image_url = "https://images.unsplash.com/photo-1575936123452-b67c3203c357?ixlib=rb-4.0.3&w=1000&q=80"
                     import logging
                     logging.warning(f"Localhost detected ({host_url}). Using public placeholder image for Instagram: {image_url}")
                 else:
-                    image_url = f"{host_url}static/social_images/{filename}".replace("http://", "https://")
+                    # Production: Use actual URL
+                    # Ensure https
+                    if not host_url.startswith("https"):
+                        host_url = host_url.replace("http", "https", 1)
+                    image_url = f"{host_url}static/social_images/{filename}"
             else:
                 # Use default JDImage.jpg
                 # Check if it exists in root and copy to static if needed
