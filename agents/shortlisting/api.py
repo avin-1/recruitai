@@ -39,6 +39,24 @@ test_service = TestService()
 db_manager = DatabaseManager()
 # test_gen_agent = TestGenerationAgent() # Moved to lazy load
 
+# Lazy load test generation agent
+test_gen_agent = None
+def get_test_gen_agent():
+    global test_gen_agent
+    if test_gen_agent is None:
+        try:
+            # Import locally to avoid circular imports or startup delays
+            from test_agent import TestGenerationAgent
+            test_gen_agent = TestGenerationAgent()
+        except Exception as e:
+            print(f"Warning: Failed to load test generation agent: {e}")
+            # Return a dummy agent that fails gracefully
+            class DummyTestAgent:
+                def generate_questions(self, *args, **kwargs):
+                    raise Exception(f"Test Generation Agent unavailable: {e}")
+            test_gen_agent = DummyTestAgent()
+    return test_gen_agent
+
 # Lazy load LLM analyzer to prevent crashes during Flask reloads
 llm_analyzer = None
 _llm_analyzer_module = None
@@ -128,7 +146,7 @@ def generate_questions():
         if not topic:
             return jsonify({'success': False, 'error': 'Topic is required'}), 400
             
-        questions = test_gen_agent.generate_questions(topic, count, difficulty, q_type)
+        questions = get_test_gen_agent().generate_questions(topic, count, difficulty, q_type)
         
         return jsonify({
             'success': True,
@@ -168,7 +186,7 @@ def chat_with_agent():
             if not topic:
                 topic = 'general programming'
                 
-            questions = test_gen_agent.generate_questions(topic, count, 'medium', 'multiple_choice')
+            questions = get_test_gen_agent().generate_questions(topic, count, 'medium', 'multiple_choice')
             response['message'] = f"I've generated {len(questions)} questions about {topic}."
             response['action'] = 'SHOW_GENERATED_QUESTIONS'
             response['data'] = questions

@@ -139,6 +139,22 @@ Provide a brief, clear explanation (1-2 sentences) of your reasoning and decisio
 
 Select best slots that minimize conflicts."""
             },
+            'Test Generation Agent': {
+                'generation': """User Request: "{topic}"
+
+Task: Generate {count} {difficulty} {type} questions based on the request above.
+- If the request is a topic (e.g. "Python"), generate questions about that topic.
+- If the request is a specific instruction (e.g. "Give me questions about decorators"), follow that instruction.
+
+Format the output as a JSON array of objects. Each object must have:
+- "question": The question text
+- "options": An array of 4 options (strings)
+- "correct_answer": The correct option (string, must match one of the options exactly)
+- "explanation": Brief explanation of the answer
+
+Ensure the questions are high quality and relevant.
+Output ONLY the JSON array. Do not add any markdown formatting or extra text."""
+            }
         }
         
         conn = sqlite3.connect(self.db_path)

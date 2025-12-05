@@ -54,6 +54,6 @@ export const CORE_API_BASE = buildBase(
 export const SETTINGS_API_BASE = buildBase(
   import.meta.env.VITE_SETTINGS_API_URL,
   5003,
-  '/api/settings'
+  '/api'
 );
 

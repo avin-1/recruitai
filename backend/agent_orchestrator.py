@@ -74,10 +74,11 @@ class AIAgent:
         
         try:
             # Try to get custom prompt from prompt manager
-            # prompt_manager = get_prompt_manager() # Commented out as it's not imported/defined in this file context
-            custom_prompt = None
-            # if prompt_manager:
-            #     custom_prompt = prompt_manager.get_prompt(self.name, 'reasoning')
+            try:
+                from prompt_manager import prompt_manager
+                custom_prompt = prompt_manager.get_prompt(self.name, 'reasoning')
+            except ImportError:
+                custom_prompt = None
             
             # Use custom prompt if available, otherwise use default
             if custom_prompt:

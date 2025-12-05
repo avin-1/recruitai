@@ -23,7 +23,8 @@ def get_agents():
         {'name': 'Interview Scheduler Agent', 'description': 'Schedules interviews based on availability'},
         {'name': 'Resume and Matching Agent', 'description': 'Matches resumes to job descriptions'},
         {'name': 'Job Description Agent', 'description': 'Parses job descriptions from PDFs and extracts structured information'},
-        {'name': 'Shortlisting Agent', 'description': 'Evaluates candidate test performance'}
+        {'name': 'Shortlisting Agent', 'description': 'Evaluates candidate test performance'},
+        {'name': 'Test Generation Agent', 'description': 'Generates technical and aptitude questions for tests'}
     ]
     return jsonify({'success': True, 'agents': agents})
 
