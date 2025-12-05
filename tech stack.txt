@@ -1,0 +1,47 @@
+General Tech Stack
+
+Backend
+-------
+Language: Python
+Framework: Flask
+Server: Waitress (WSGI)
+Database: 
+  - SQLite (Relational)
+  - MongoDB (NoSQL - via pymongo)
+  - ChromaDB (Vector Database)
+AI/ML Libraries:
+  - PyTorch (torch)
+  - Hugging Face Transformers (transformers)
+  - Sentence Transformers (sentence-transformers)
+  - OpenAI API (openai)
+  - LangGraph (langgraph)
+Utilities:
+  - Pydantic (Data Validation)
+  - PyMuPDF (PDF Processing)
+  - Google API Client (Google Integrations)
+  - Python-Dotenv (Environment Variables)
+
+Frontend
+--------
+Language: JavaScript / React
+Framework: React 19
+Build Tool: Vite
+Styling: 
+  - Tailwind CSS v4
+  - Class Variance Authority (CVA)
+  - Tailwind Merge
+UI Components: 
+  - Radix UI Primitives
+  - Lucide React (Icons)
+Visualization: Recharts
+Math Rendering: KaTeX, React-Latex-Next
+HTTP Client: Axios
+Routing: React Router DOM
+
+Infrastructure & Deployment
+---------------------------
+Web Server / Reverse Proxy: Nginx
+Containerization: Docker (Docker Compose)
+Hosting: 
+  - Backend: Render
+  - Frontend: Vercel
