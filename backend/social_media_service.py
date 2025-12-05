@@ -23,11 +23,16 @@ class SocialMediaService:
         # Use Facebook Graph API base URL for Content Publishing
         self.base_url = "https://graph.facebook.com/v19.0"
         
+        self.fb_page_id = os.getenv("FB_PAGE_ID")
+        
         print(f"DEBUG TOKEN: '{self.access_token}'")
         print(f"DEBUG IG_USER_ID: '{self.ig_user_id}'")
+        print(f"DEBUG FB_PAGE_ID: '{self.fb_page_id}'")
         
         if not self.ig_user_id or not self.access_token:
             logger.warning("Instagram credentials (IG_USER_ID, ACCESS_TOKEN) not found in environment variables.")
+        if not self.fb_page_id:
+            logger.warning("Facebook Page ID (FB_PAGE_ID) not found in environment variables.")
 
     def post_to_instagram(self, caption, image_url):
         """
@@ -91,6 +96,68 @@ class SocialMediaService:
             logger.error(traceback.format_exc())
             return None
 
+    def post_to_facebook(self, caption, image_url):
+        """
+        Post an image to Facebook Page.
+        
+        Args:
+            caption (str): The caption for the post.
+            image_url (str): The PUBLIC URL of the image.
+            
+        Returns:
+            dict: The response from the API (containing id on success) or None on failure.
+        """
+        if not self.fb_page_id or not self.access_token:
+            logger.error("Cannot post to Facebook: Missing credentials (FB_PAGE_ID or ACCESS_TOKEN).")
+            return None
+
+        try:
+            # Step 1: Get Page Access Token
+            # We need to exchange the User Token for a Page Token to post AS the page
+            page_token_url = f"{self.base_url}/{self.fb_page_id}"
+            token_params = {
+                "fields": "access_token",
+                "access_token": self.access_token
+            }
+            
+            logger.info(f"Fetching Page Access Token for Page ID: {self.fb_page_id}")
+            token_response = httpx.get(page_token_url, params=token_params, timeout=10.0)
+            
+            if token_response.status_code != 200:
+                logger.error(f"Failed to get Page Token: {token_response.text}")
+                # Fallback: Try using the user token directly (might fail with permission error)
+                page_access_token = self.access_token
+            else:
+                page_access_token = token_response.json().get("access_token")
+                logger.info("Successfully retrieved Page Access Token.")
+
+            # Step 2: Post Photo using Page Access Token
+            url = f"{self.base_url}/{self.fb_page_id}/photos"
+            
+            params = {
+                "access_token": page_access_token,
+                "url": image_url,
+                "message": caption,
+                "published": "true"
+            }
+            
+            logger.info(f"Posting to Facebook Page {self.fb_page_id} with image: {image_url}")
+            response = httpx.post(url, params=params, timeout=30.0)
+            response.raise_for_status()
+            data = response.json()
+            
+            logger.info(f"Successfully published to Facebook: {data.get('id')}")
+            return data
+
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HTTP Error posting to Facebook: {e.response.status_code} - {e.response.text}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error posting to Facebook: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return None
+
     def post_job(self, job_details, image_url, platforms=["instagram"]):
         """
         Post job details to specified platforms.
@@ -110,18 +177,55 @@ class SocialMediaService:
         company = job_details.get("company", "Hiring")
         location = job_details.get("location", "")
         summary = job_details.get("summary", "")
+        job_id = str(job_details.get("_id", ""))
         
-        caption = f"🚀 WE ARE HIRING!\n\nRole: {title}\nCompany: {company}\nLocation: {location}\n\n{summary}\n\n#hiring #job #career #recruitment #jobsearch"
+        # Links
+        portal_link = f"http://localhost:3000/job/{job_id}"
+        linkedin_link = "https://www.linkedin.com/jobs/view/3816594215" # Example hardcoded link
+        naukri_link = "https://www.naukri.com/job-listings-software-engineer-123456" # Example hardcoded link
+        
+        caption = f"""🚀 WE ARE HIRING!
+
+Role: {title}
+Company: {company}
+Location: {location}
+
+{summary}
+
+👇 APPLY HERE 👇
+🏠 Our Portal: {portal_link}
+🔗 LinkedIn: {linkedin_link}
+💼 Naukri: {naukri_link}
+
+#hiring #job #career #recruitment #jobsearch"""
         
         if "instagram" in platforms:
             res = self.post_to_instagram(caption, image_url)
             results["instagram"] = "success" if res else "failed"
             
-        # Placeholder for Facebook
         if "facebook" in platforms:
-            # Facebook posting logic would go here
-            # For now, we'll just log it
-            logger.info("Facebook posting not yet implemented.")
-            results["facebook"] = "skipped"
+            res = self.post_to_facebook(caption, image_url)
+            results["facebook"] = "success" if res else "failed"
+
+        # New Platforms using Provider Pattern
+        if "linkedin" in platforms:
+            try:
+                from platforms.linkedin_provider import LinkedInJobProvider
+                provider = LinkedInJobProvider()
+                res = provider.post_job(job_details)
+                results["linkedin"] = res.get("status", "failed")
+            except Exception as e:
+                logger.error(f"Failed to load/run LinkedIn provider: {e}")
+                results["linkedin"] = "failed"
+
+        if "naukri" in platforms:
+            try:
+                from platforms.naukri_provider import NaukriJobProvider
+                provider = NaukriJobProvider()
+                res = provider.post_job(job_details)
+                results["naukri"] = res.get("status", "failed")
+            except Exception as e:
+                logger.error(f"Failed to load/run Naukri provider: {e}")
+                results["naukri"] = "failed"
             
         return results

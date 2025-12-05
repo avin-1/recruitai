@@ -578,6 +578,35 @@ def chat_agent():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+@app.route('/api/fetch_candidates', methods=['POST'])
+def fetch_candidates():
+    """
+    Mock endpoint to fetch candidates from external sources (LinkedIn, Naukri).
+    """
+    try:
+        data = request.json
+        job_id = data.get('job_id')
+        source = data.get('source')
+        
+        if not job_id or not source:
+            return jsonify({"error": "Missing job_id or source"}), 400
+            
+        logger.info(f"Fetching candidates for Job {job_id} from {source}")
+        
+        # Mock Logic
+        import time
+        time.sleep(1.5) # Simulate network delay
+        
+        return jsonify({
+            "status": "success",
+            "message": f"Sync initiated with {source.title()}. 0 new candidates found (Mock).",
+            "count": 0
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error fetching candidates: {e}")
+        return jsonify({"error": str(e)}), 500
+
 # ---------------- Run App ----------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
