@@ -1,58 +1,51 @@
-# Backend Study Guide
+# Backend Study Guide (Deep Dive)
 
-## 1. Tech Stack Overview
+## 1. Tech Stack Narrative
 
-- **Language:** Python
-- **Framework:** Flask
-- **Server:** Waitress (WSGI server for production)
-- **Database:**
-    - **MongoDB:** Primary transactional DB (NoSQL).
-    - **ChromaDB:** Vector Database for AI embeddings.
-- **ORM/ODM:** PyMongo (Direct driver, no heavy ORM like SQLAlchemy).
-- **AI Integration:** OpenAI API / HuggingFace (via LangGraph/LangChain).
+Our backend is the powerhouse of the application, built using **Python** and **Flask**. We chose Python because it is the "Lingua Franca" of Artificial Intelligence. Since our system relies heavily on AI/ML libraries like PyTorch and Transformers, using Python for the API ensures that our web layer and our logic layer speak the same language, avoiding the complexity of a "Polyglot" system.
 
-### Why this stack?
-- **Flask:** Lightweight and explicit. Unlike Django, it doesn't force a structure on you. This is great for our "Hybrid" architecture where we need some custom microservice patterns.
-- **Python:** The #1 language for AI. Since our system is AI-heavy, using Python for the backend keeps everything in one ecosystem.
-- **MongoDB:** Flexible schema. Ideal for "Profiles" and "Job Descriptions" which change structure often.
-- **Waitress:** Flask's built-in server is for development only. Waitress is a production-ready WSGI server that can handle multiple concurrent requests efficiently on Windows/Linux.
+**Flask** was chosen over Django for its simplicity. Django is a "Battery-included" framework that forces a specific structure and comes with a heavy ORM. Flask, being a "Micro-framework," stays out of our way. It allows us to structure our Agents and Services exactly how we want, making it perfect for our custom Hybrid Architecture. For the database, we use **MongoDB** (via PyMongo). This choice is crucial because recruitment data is highly unstructured—one candidate might have a Github link, another a Portfolio, another a list of Patents. A rigid SQL schema would be a nightmare to maintain here, whereas MongoDB's flexible documents adapt naturally to this variance.
 
-## 2. API Design & Database Schema
+## 2. The Story of an API Request (`upload_api.py`)
 
-### Key API Endpoints (`upload_api.py`)
-- `POST /upload`: Handles file uploads (resumes).
-- `GET /jobs`: Lists available job openings.
-- `POST /apply`: Submits an application (calculates match score instantly).
-- `POST /approve`: "Human in the loop" step. HR approves a parsed profile.
+Let's look at what happens when a user hits the `/upload` endpoint. This isn't just a simple file save; it's a carefully orchestrated sequence.
 
-### Database Schema (MongoDB)
-We use a **Document-Oriented** model.
-1. **collection `json_files` (Profiles/Jobs):**
-    - Stores the parsed Job Descriptions.
-    - Fields: `job_title`, `company`, `skills` (list), `approved` (boolean).
-2. **collection `applications`:**
-    - Stores candidate applications.
-    - Fields: `job_id` (Link to Job), `email`, `score` (computed match), `resume_path`.
-    - **Index:** Compound Unique Index on `(job_id, email)` prevents spamming the same job.
+1.  **Validation:** First, the endpoint checks if the request actually contains a file. It uses `secure_filename` to sanitize the input name, preventing malicious users from trying to overwrite critical system files by naming their upload `../../system.conf`.
+2.  **Storage:** The file is saved to a specific "Input" folder watched by our agents.
+3.  **Trigger:** By saving the file, we implicitly trigger the **Job Description Agent**, which is watching that folder. This is an "Event-Driven" pattern—the API doesn't call the Agent; the data change *is* the call.
 
-## 3. Security & Authentication
+This same pattern repeats throughout the system. The API handles the "User Input/Output" (Synchronous), and the Agents handle the "Thinking" (Asynchronous), linked together by the Data.
 
-- **Current State:** Minimal/None.
-- **Why?** It's a prototype/MVP. We focus on the AI features first.
-- **Improvement for Exam:** "In a real production system, I would implement **JWT (JSON Web Tokens)**. Users would login -> get a token -> send token in Header -> Backend validates token before allowing access to `/approve`."
+## 3. Core Services Deep Dive
 
-## 4. Exam Q&A Preparation
+### The Email Service
+The `EmailService` is a dedicated module for communication. It doesn't just "fire and forget" emails; it maintains a local **SQLite** database to track the state of every message. When we select candidates for an interview, the service iterates through them, constructs a personalized email using an HTML template, sends it via SMTP, and *then* records the success. This ensures that if the server crashes halfway through, we know exactly who got the email and who didn't.
+
+### The Social Media Service
+Our `Social Media Service` allows HR to act as marketers. When a Job Profile is approved, this service can push a beautifully formatted post to **Instagram**. It uses the **Facebook Graph API**. The flow is two-step: first, we create a "Media Container" hosting the image, and then we "Publish" that container. It uses the `httpx` library, which is modern and supports async operations, future-proofing the service for high-volume posting.
+
+## 4. Security & Authentication
+
+Currently, our prototype uses a trusted internal model. However, in a production environment, this would be a major vulnerability. We would implement **JWT (JSON Web Tokens)**. The flow would be: User Logs In -> Server generates a signed Token -> User sends this Token in the Header of every request. The Backend would then Decode and Verify this token before allowing any action, ensuring that only specialized "HR Admin" accounts could approve jobs or schedule interviews.
+
+## 5. Technology Trade-offs (Why we chose X vs Y)
+
+### Flask vs. Django
+- **Why Flask?** Django comes with a heavy ORM, Admin Panel, and strict directory structure. It's great for blogs, but bloat for an AI API.
+- **Benefit:** Flask is "Micro". It gets out of the way. We can structure our agents however we want without fighting the framework.
+
+### MongoDB vs. SQL (PostgreSQL)
+- **Why NoSQL?** Job Descriptions and Resumes are highly variable. One resume has "Github", another has "Portfolio", another has "Patents".
+- **Benefit:** In SQL, we'd need a table with 50 columns mostly NULL. In MongoDB, we just store the JSON document as-is. It matches our data naturally.
+
+### Python vs. Node.js (for Backend)
+- **Why Python?** Logic. If the AI/ML libraries (PyTorch, Transformers, LangChain) are in Python, the API should be too.
+- **Benefit:** Avoids the complexity of a "Polyglot" repo (e.g., Node.js Backend calling Python scripts via shell commands). Everything runs in the same process/language.
+
+## 6. Exam Q&A Preparation
 
 **Q: What is the purpose of `wsgi.py` or Waitress?**
 **A:** Flask's `app.run()` is single-threaded and not secure for the internet. A WSGI server (like Waitress or Gunicorn) sits between Nginx and Flask to handle concurrency and buffering.
 
 **Q: Explain Vector Database (ChromaDB) usage.**
-**A:** Standard databases search for **KEYWORDS** (e.g., "Python"). Vector databases search for **MEANING**.
-- "I know coding" ≈ "I am a developer" (High semantic similarity).
-- A keyword search would miss this. A Vector DB catches it by converting text into high-dimensional geometric vectors (embeddings).
-
-**Q: Why separate `upload_api.py` from `agent_orchestrator.py`?**
-**A:** Separation of Concerns.
-- `upload_api.py`: Synchronous. Fast. Handles User I/O.
-- `agent_orchestrator.py`: Asynchronous. Slow. Handles "Thinking" and "Reasoning".
-- This prevents the user from waiting 30 seconds for a page load while the AI thinks.
+**A:** Standard databases search for **KEYWORDS** (e.g., "Python"). Vector databases search for **MEANING**. "I know coding" ≈ "I am a developer" (High semantic similarity). A keyword search would miss this. A Vector DB catches it by converting text into high-dimensional geometric vectors (embeddings).

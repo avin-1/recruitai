@@ -1,16 +1,33 @@
-# System Architecture Study Guide
+# System Architecture Study Guide (Deep Dive)
 
 ## 1. High-Level Overview
 
 **Architecture Style:** Hybrid Monolith + Microservices
-The system isn't a pure monolith or a pure microservice architecture. It uses a **main backend** (Flask) that handles the core business logic (Uploads, Auth, DB access) and orchestrates **specialized microservices** (Agents) for heavy lifting.
+
+Our system adopts a **Hybrid Architecture** that blends the simplicity of a Monolith with the scalability of Microservices. At its core, we have a centralized **Flask Backend** (running on port 8080) that handles all user-facing interactions, such as file uploads, authentication placeholders, and data retrieval. This ensures that the core business logic remains tightly coupled and easy to debug.
+
+Surrounding this core are specialized **Microservices** (Agents) running on separate ports (5001, 5002). These agents are responsible for computationally intensive or long-running tasks, such as conducting AI interviews or analyzing code complexity. By offloading these tasks, we ensure that the main user interface remains snappy and responsive, even when the system is under heavy load processing complex AI reasoning.
 
 ### Why this architecture?
-- **Speed of Development:** Flask allows rapid prototyping for the core CRUD features.
-- **Scalability of Agents:** Heavy AI tasks (Resume Matching, Interview Scheduling) are separated into their own services (ports 5001, 5002) so they don't block the main API.
-- **Flexibility:** Different agents can use different libraries or even languages (though all are Python here) without affecting the main backend.
+We chose this "Hybrid" approach to balance **Speed of Development** with **Scalability**. A pure monolith would have been easier to start with, but it would have struggled as we added more complex AI features. A pure microservices architecture would have introduced too much complexity (service discovery, distributed tracing) for a team of our size. This middle ground gives us the best of both worlds: the ease of a single codebase for the main app, and the freedom to write specialized, independent agents for the AI logic.
 
-## 2. System Diagram (Conceptual)
+## 2. The Life of a Candidate (Data Flow Narrative)
+
+To understand how the system works, let's follow the journey of a single piece of data—a Candidate Application—through the entire system.
+
+### Step 1: The Job Description (The Spark)
+Everything begins when a Recruiter uploads a Job Description (JD) PDF via the Frontend. This file is sent to the **Upload API**, which saves it to a watched folder (`agents/jobdescription/input`). The **Job Description Agent**, running efficiently in the background, detects this new file. It wakes up, uses an LLM to "read" the PDF, and extracts structured data like "Job Title," "Required Skills," and "Company Name." This structured JSON is then written to our **MongoDB** database, making the job "live" and searchable.
+
+### Step 2: The Application (The Match)
+A candidate visits the Job Portal and uploads their resume. The Frontend pushes this file to the Backend. Instantly, the **Resume & Matching Agent** (embedded in the backend for speed) is triggered. It doesn't just look for keywords; it performs a **Semantic Search** using vector embeddings to understand the *meaning* of the resume. Simultaneously, sends the resume to an LLM to get a qualitative score (0-100). If the score crosses our threshold (e.g., 50%), the application is accepted and saved to the database. This happens in milliseconds, giving the user instant feedback.
+
+### Step 3: The Shortlist (The Decision)
+Accepted candidates are invited to take a technical test. When they complete it, the **Shortlisting Agent** (:5001) swings into action. It queries the **Codeforces API** to verify their coding performance, ensuring they didn't just guess the answers. It combines this hard data with an LLM analysis of their code style. If the candidate proves their competence, the agent updates their status to `SHORTLISTED` in the database.
+
+### Step 4: The Interview (The Closing)
+Finally, the **Interview Scheduler Agent** (:5002) polls the database for these shortlisted candidates. It acts like a human assistant, checking the HR manager's **Google Calendar** for free slots. It uses an optimization algorithm to find times that maximize availability. once a slot is found, it automatically sends an email invite with a generated **Google Meet** link and creates a calendar event.
+
+## 3. System Diagram (Conceptual)
 
 ```mermaid
 graph TD
@@ -29,22 +46,29 @@ graph TD
     Shortlist -->|Read/Write| Mongo
 ```
 
-## 3. Integration Points
+## 4. Integration Points & Communication
 
-- **Frontend <-> Backend:**
-  - Communication happens via **REST APIs** (JSON).
-  - **Axios** is the HTTP client used in React.
-  - **Nginx** handles routing, so the frontend just calls `/api/...` and Nginx knows where to send it.
+- **Frontend <-> Backend:** All communication happens via **REST APIs** using JSON. The Frontend uses **Axios** to send asynchronous requests, meaning the UI never freezes while waiting for the server. **Nginx** acts as the traffic cop, routing requests starting with `/api` to the backend and serving the React app for everything else.
 
-- **Backend <-> Database:**
-  - **MongoDB** is the primary source of truth (User profiles, Jobs, Applications).
-  - **ChromaDB** (if active) is used for semantic search (finding resumes that "mean" the same as the job description, not just keyword matching).
+- **Backend <-> Database:** **MongoDB** is our single source of truth. We use the "Shared Database" pattern, where multiple services (Core, Interview, Shortlist) all talk to the same DB. While purists might argue for "Database per Service," our shared approach drastically simplifies reporting and data consistency for this scale of project.
 
-- **Agents <-> Core:**
-  - Agents often run as standalone APIs. The Core might call them via HTTP, or they might share the Database.
-  - In this system, they largely **share the MongoDB** database. One writes, the other reads. This is the "Shared Database" pattern.
+## 5. Technology Trade-offs (Why we chose X vs Y)
 
-## 4. Exam Q&A Preparation
+### Hybrid vs. Pure Microservices
+- **The Choice:** We have separate processes but a **Shared Database**.
+- **Alternative:** "Database per Service" (Pure Microservices).
+- **Why Hybrid?** Managing Distributed Transactions (e.g., "Rollback the Application if the Interview fails") is extremely hard in pure microservices. With a shared Mongo, we get the speed of microservices but the data simplicity of a monolith.
+
+### Polling vs. WebSockets (for Notifications)
+- **The Choice:** Frontend polls `/api/notifications` every X seconds.
+- **Alternative:** WebSockets (Socket.io).
+- **Why Polling?** WebSockets require a persistent stateful connection server, which is hard to scale and deploy on some serverless platforms. Polling is "dumb but robust" and easier to implement for a prototype.
+
+### Docker Compose vs. Kubernetes
+- **The Choice:** Docker Compose.
+- **Why?** Kubernetes is an orchestration beast intended for Google-scale. For a team project with <10 services, Docker Compose provides 80% of the value (Containerization, Networking) with 10% of the complexity.
+
+## 6. Exam Q&A Preparation
 
 **Q: Why use MongoDB instead of SQL (PostgreSQL)?**
 **A:** Recruitment data is highly unstructured. Resumes come in different formats, and job descriptions vary wildly. A NoSQL document store (JSON-like) allows us to store arbitrary data without complex migrations every time we add a field like "Github URL" or "Portfolio".
@@ -54,6 +78,3 @@ graph TD
 
 **Q: Why separate the Interview Agent into its own service?**
 **A:** The Interview agent might need to hold long-running connections or perform complex scheduling logic (simulated "thinking"). If this ran in the main Flask app, it could slow down simple requests like "Main Page Load". Separating it ensures the UI stays snappy.
-
-**Q: What is "Agentic" about this system?**
-**A:** Unlike a standard CRUD app, this system has components that "reason". The Orchestrator doesn't just run a script; it uses an LLM (Language Model) to look at data, make a decision (Accept/Reject), and **explain its reasoning** to the user. It has autonomy.
