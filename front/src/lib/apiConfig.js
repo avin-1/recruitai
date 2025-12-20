@@ -57,3 +57,9 @@ export const SETTINGS_API_BASE = buildBase(
   '/api'
 );
 
+export const NOTIFICATION_API_BASE = buildBase(
+  import.meta.env.VITE_NOTIFICATION_URL || import.meta.env.VITE_NOTIFICATION_API_URL,
+  5005,
+  ''
+);
+

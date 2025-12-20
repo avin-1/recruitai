@@ -152,7 +152,7 @@ def get_candidates_with_schedules():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/interviews/availability', methods=['GET'])
+@app.route('/api/interviews/availability', methods=['GET', 'POST'])
 def get_availability():
     """Get interviewer availability"""
     return jsonify({
