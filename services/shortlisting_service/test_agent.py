@@ -99,8 +99,9 @@ class TestGenerationAgent(AIAgent):
             
         except Exception as e:
             self.notify(
-                f"❌ Failed to generate questions: {str(e)}",
-                'error'
+                f"⚠️ AI Generation Failed: {str(e)}. Using MOCK questions.",
+                'warning',
+                reasoning="The AI service could not be reached (Invalid Token?). Switched to backup mode to prevent crash."
             )
             print(f"Error generating questions: {e}")
             return self._get_fallback_questions(topic, count)
