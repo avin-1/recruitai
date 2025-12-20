@@ -149,13 +149,43 @@ class TestGenerationAgent(AIAgent):
         return content
 
     def _get_fallback_questions(self, topic: str, count: int) -> List[Dict]:
-        """Return dummy questions if LLM fails"""
-        return [
-            {
-                "question": f"Sample question {i+1} about {topic}?",
-                "options": ["Option A", "Option B", "Option C", "Option D"],
-                "correct_answer": "Option A",
-                "explanation": "This is a fallback question."
-            }
-            for i in range(count)
-        ]
+        """Return realistic dummy questions if LLM fails (Mock Mode)"""
+        print(f"Generating fallback mock questions for: {topic}")
+        
+        # Simple keyword-based mock generation
+        mock_questions = []
+        topic_lower = topic.lower()
+        
+        for i in range(count):
+            if "python" in topic_lower:
+                q = {
+                    "question": f"What is the output of print(2 ** {i+2}) in Python?",
+                    "options": [str(2**(i+2)), str(2*(i+2)), str((i+2)**2), "Error"],
+                    "correct_answer": str(2**(i+2)),
+                    "explanation": "The ** operator performs exponentiation."
+                }
+            elif "react" in topic_lower:
+                q = {
+                    "question": f"Which hook is used for {['side effects', 'state', 'context', 'optimization'][i % 4]}?",
+                    "options": ["useEffect", "useState", "useContext", "useMemo"],
+                    "correct_answer": ["useEffect", "useState", "useContext", "useMemo"][i % 4],
+                    "explanation": "Standard React hooks."
+                }
+            elif "math" in topic_lower:
+                val = (i + 1) * 5
+                q = {
+                    "question": f"What is {val} + {val}?",
+                    "options": [str(val*2), str(val+10), str(val*3), str(val)],
+                    "correct_answer": str(val*2),
+                    "explanation": "Basic addition."
+                }
+            else:
+                 q = {
+                    "question": f"Mock Question {i+1} about {topic}: What is the primary characteristic?",
+                    "options": ["Efficiency", "Speed", "Complexity", "None of the above"],
+                    "correct_answer": "Efficiency",
+                    "explanation": "Generic fallback explanation."
+                }
+            mock_questions.append(q)
+            
+        return mock_questions

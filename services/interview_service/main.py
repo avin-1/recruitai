@@ -171,6 +171,45 @@ def get_candidates():
     emails = db.get_interview_candidate_emails()
     return jsonify({'success': True, 'emails': emails})
 
+@app.route('/api/interviews/chat', methods=['POST'])
+def chat_endpoint():
+    """Handle chat for scheduling interviews"""
+    try:
+        data = request.get_json()
+        user_message = data.get('message', '')
+        hr_email = data.get('hr_email')
+        
+        # Simple Logic for now (Mock Agent)
+        # In future, import InterviewChatAgent from utils
+        
+        response_text = f"I understand you want to: {user_message}. I can help schedule interviews. (Agent Active)"
+        slots = []
+        action = None
+        action_data = None
+        
+        if "suggest" in user_message.lower() or "slot" in user_message.lower():
+            # Mock suggesting slots
+            response_text = "Here are some suggest slots based on your calendar:"
+            slots = [
+                {'start': '2024-01-02T10:00:00', 'end': '2024-01-02T10:30:00'},
+                {'start': '2024-01-02T14:00:00', 'end': '2024-01-02T14:30:00'}
+            ]
+        elif "cancel" in user_message.lower() or "remove" in user_message.lower():
+             response_text = "I can remove that candidate. Please confirm."
+             # Logic to parse email would go here
+             
+        return jsonify({
+            'success': True,
+            'response': response_text,
+            'slots': slots,
+            'action': action,
+            'data': action_data
+        })
+        
+    except Exception as e:
+        logger.error(f"Chat error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5002))
     app.run(host='0.0.0.0', port=port, debug=False)
