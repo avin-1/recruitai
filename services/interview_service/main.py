@@ -179,25 +179,81 @@ def chat_endpoint():
         user_message = data.get('message', '')
         hr_email = data.get('hr_email')
         
-        # Simple Logic for now (Mock Agent)
-        # In future, import InterviewChatAgent from utils
-        
-        response_text = f"I understand you want to: {user_message}. I can help schedule interviews. (Agent Active)"
+        # Initialize OpenAI Client (pointing to HF)
+        client = None
+        try:
+             import os
+             from openai import OpenAI
+             token = os.environ.get("HF_TOKEN")
+             if token:
+                 client = OpenAI(
+                     base_url="https://router.huggingface.co/v1",
+                     api_key=token,
+                     timeout=30.0
+                 )
+        except Exception as client_err:
+             logger.error(f"Failed to init LLM client: {client_err}")
+
+        response_text = "I'm sorry, I cannot process your request right now."
         slots = []
         action = None
         action_data = None
         
-        if "suggest" in user_message.lower() or "slot" in user_message.lower():
-            # Mock suggesting slots
-            response_text = "Here are some suggest slots based on your calendar:"
-            slots = [
-                {'start': '2024-01-02T10:00:00', 'end': '2024-01-02T10:30:00'},
-                {'start': '2024-01-02T14:00:00', 'end': '2024-01-02T14:30:00'}
-            ]
-        elif "cancel" in user_message.lower() or "remove" in user_message.lower():
-             response_text = "I can remove that candidate. Please confirm."
-             # Logic to parse email would go here
-             
+        if client:
+            try:
+                # System prompt to guide the agent
+                system_prompt = """You are an AI Interview Scheduler Assistant. 
+                Your goal is to help the HR manager schedule interviews or manage candidates.
+                
+                Capabilities:
+                1. Suggest Slots: If user asks for slots, output JSON with "slots": [{"start": "...", "end": "..."}]
+                2. Remove Candidate: If user wants to remove someone, output JSON with "action": "REMOVE_CANDIDATE", "data": {"email": "..."}
+                3. General Chat: Just answer helpfully.
+                
+                You must output a JSON object with:
+                {
+                    "response": "Text response to user",
+                    "slots": [], 
+                    "action": null,
+                    "data": null
+                }
+                """
+                
+                llm_response = client.chat.completions.create(
+                    model="Qwen/Qwen2.5-72B-Instruct", 
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": f"User Message: {user_message}\nHR Email: {hr_email}"}
+                    ],
+                    max_tokens=500,
+                    temperature=0.7
+                )
+                
+                content = llm_response.choices[0].message.content.strip()
+                # Attempt to parse JSON from LLM
+                import json
+                try:
+                    # heuristic to find json block if wrapped in markdown
+                    if "```json" in content:
+                        content = content.split("```json")[1].split("```")[0].strip()
+                    elif "{" in content:
+                        content = content[content.find("{"):content.rfind("}")+1]
+                        
+                    parsed = json.loads(content)
+                    response_text = parsed.get("response", response_text)
+                    slots = parsed.get("slots", [])
+                    action = parsed.get("action")
+                    action_data = parsed.get("data")
+                except:
+                    # Fallback if LLM didn't return valid JSON, just use text
+                    response_text = content
+                    
+            except Exception as llm_err:
+                logger.error(f"LLM generation failed: {llm_err}")
+                response_text = "I'm having trouble connecting to the AI brain right now. " + str(llm_err)
+        else:
+            response_text = "AI Client not initialized. Please checking HF_TOKEN."
+
         return jsonify({
             'success': True,
             'response': response_text,

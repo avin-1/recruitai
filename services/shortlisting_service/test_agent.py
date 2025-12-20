@@ -66,7 +66,7 @@ class TestGenerationAgent(AIAgent):
                 return self._get_fallback_questions(topic, count)
 
             response = self.client.chat.completions.create(
-                model="openai/gpt-oss-20b:fireworks-ai", # Or any available model
+                model="Qwen/Qwen2.5-72B-Instruct", # More reliable HF model
                 messages=[
                     {"role": "system", "content": "You are an expert technical interviewer. Output valid JSON only."},
                     {"role": "user", "content": prompt}
