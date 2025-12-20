@@ -67,6 +67,35 @@ def index():
         "services": ["upload", "core"]
     }), 200
 
+# ---------------- Mock Fetch Candidates (LinkedIn/Naukri) ----------------
+@app.route('/fetch_candidates', methods=['POST'])
+def fetch_candidates():
+    """
+    Mock endpoint to fetch candidates from external sources (LinkedIn, Naukri).
+    """
+    try:
+        data = request.json
+        job_id = data.get('job_id')
+        source = data.get('source')
+        
+        if not job_id or not source:
+            return jsonify({"error": "Missing job_id or source"}), 400
+            
+        logger.info(f"Fetching candidates for Job {job_id} from {source}")
+        
+        # Mock Logic
+        import time
+        time.sleep(1.5) # Simulate network delay
+        
+        return jsonify({
+            "status": "success",
+            "message": f"Sync initiated with {source.title()}. 0 new candidates found (Mock).",
+            "count": 0
+        }), 200
+    except Exception as e:
+        logger.error(f"Error fetching candidates: {e}")
+        return jsonify({"error": str(e)}), 500
+
 # ---------------- File Upload Endpoint ----------------
 @app.route("/upload", methods=["POST"])
 def upload_file():
@@ -364,6 +393,221 @@ def get_selected_candidates():
            return jsonify({"error": "Failed to fetch from notification service"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# ---------------- Run App ----------------
+# ---------------- Delete Profile ----------------
+@app.route("/delete", methods=["POST"])
+def delete_profile():
+    data = request.get_json()
+    profile_id = data.get("profile_id")
+    if not profile_id:
+        return jsonify({"error": "No profile_id provided"}), 400
+    try:
+        result = collection.delete_one({"_id": ObjectId(profile_id)})
+        if result.deleted_count == 0:
+            return jsonify({"error": "Profile not found"}), 404
+        return jsonify({"message": f'Profile deleted successfully'}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ---------------- Serve Static Files for Social Images ----------------
+@app.route('/static/<path:path>')
+def send_static(path):
+    return __import__("flask").send_from_directory('static', path)
+
+# ---------------- Approve Profile ----------------
+@app.route("/approve", methods=["POST"])
+def approve_profile():
+    # Check if request is multipart (has file or form data)
+    if request.content_type and "multipart/form-data" in request.content_type:
+        profile_id = request.form.get("profile_id")
+        post_to_json = request.form.get("post_to", "[]")
+        import json
+        try:
+            post_to = json.loads(post_to_json)
+        except:
+            post_to = []
+    else:
+        # Fallback for JSON requests (legacy/simple approval)
+        data = request.get_json() or {}
+        profile_id = data.get("profile_id")
+        post_to = []
+
+    if not profile_id:
+        return jsonify({"error": "No profile_id provided"}), 400
+
+    try:
+        # 1. Approve in DB
+        result = collection.update_one({"_id": ObjectId(profile_id)}, {"$set": {"approved": True}})
+        if result.matched_count == 0:
+            return jsonify({"error": "Profile not found"}), 404
+            
+        # 2. Handle Social Media Posting
+        if post_to:
+            try:
+                # Get Job Details
+                job = collection.find_one({"_id": ObjectId(profile_id)})
+                
+                # Handle Image - simplified for microservice (no local file upload for images yet)
+                # If image provided in multipart, save it.
+                image_url = None
+                
+                if "image" in request.files and request.files["image"].filename:
+                    img_file = request.files["image"]
+                    filename = secure_filename(f"{profile_id}_{img_file.filename}")
+                    save_path = os.path.join(BASE_DIR, "static", "social_images", filename)
+                    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+                    img_file.save(save_path)
+                    
+                    host_url = request.host_url
+                    if "localhost" in host_url or "127.0.0.1" in host_url:
+                        # Use public placeholder for testing Instagram
+                        image_url = "https://images.unsplash.com/photo-1575936123452-b67c3203c357?ixlib=rb-4.0.3&w=1000&q=80"
+                    else:
+                         # Ensure https
+                        if not host_url.startswith("https"):
+                            host_url = host_url.replace("http", "https", 1)
+                        image_url = f"{host_url}static/social_images/{filename}"
+                else: 
+                     # Default image logic if needed (skipping copy from root for simplicity)
+                     image_url = "https://images.unsplash.com/photo-1575936123452-b67c3203c357?ixlib=rb-4.0.3&w=1000&q=80"
+
+                if image_url:
+                    # Import our copied service
+                    try:
+                        from utils.social_media_service import SocialMediaService
+                        sms = SocialMediaService()
+                        post_results = sms.post_job(job, image_url, post_to)
+                        return jsonify({
+                            "message": "Profile approved successfully", 
+                            "social_media_results": post_results
+                        }), 200
+                    except ImportError:
+                        return jsonify({"message": "Privile approved but Social Media Service module missing."}), 200
+            except Exception as sm_e:
+                logger.error(f"Social Media Error: {sm_e}")
+                # Don't fail the approval if social media fails
+                return jsonify({"message": f"Profile approved, but social media posting failed: {str(sm_e)}"}), 200
+
+        return jsonify({"message": f'Profile approved successfully'}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ---------------- Modify Profile ----------------
+@app.route("/modify", methods=["POST"])
+def modify_profile():
+    data = request.get_json()
+    profile_id = data.get("profile_id")
+    new_profile_data = data.get("new_profile_data")
+
+    if not profile_id or not new_profile_data:
+        return jsonify({"error": "Missing profile_id or new_profile_data"}), 400
+
+    try:
+        # Ensure the 'approved' flag is set to False
+        new_profile_data['approved'] = False
+
+        # Remove _id from the update data
+        if '_id' in new_profile_data:
+            del new_profile_data['_id']
+
+        result = collection.update_one(
+            {"_id": ObjectId(profile_id)},
+            {"$set": new_profile_data}
+        )
+
+        if result.matched_count == 0:
+            return jsonify({"error": "Profile not found"}), 404
+
+        return jsonify({"message": "Profile modified successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ---------------- Create Job Profile from Text ----------------
+@app.route("/create-job-profile", methods=["POST"])
+def create_job_profile_from_text():
+    """Create a job profile from text input (job description prompt/details)"""
+    data = request.get_json()
+    job_description_text = data.get("job_description")
+    
+    if not job_description_text:
+        return jsonify({"error": "job_description is required"}), 400
+    
+    try:
+        # Import the text-based parsing function from our local utils
+        from utils.jdParsing import parse_job_description_from_text
+        
+        # Parse the job description text into structured profile
+        profile = parse_job_description_from_text(job_description_text)
+        
+        # Set approved to False by default (needs HR approval)
+        profile["approved"] = False
+        
+        # Insert into MongoDB
+        result = collection.insert_one(profile)
+        profile["_id"] = str(result.inserted_id)
+        
+        return jsonify({
+            "message": "Job profile created successfully",
+            "profile": profile
+        }), 201
+        
+    except Exception as e:
+        logger.error(f"Error creating job profile: {e}")
+        return jsonify({"error": str(e)}), 500
+
+# ---------------- Agentic Chat Endpoint ----------------
+@app.route("/chat", methods=["POST"])
+def chat_agent():
+    """Agentic chat endpoint for job profile management"""
+    try:
+        data = request.get_json()
+        message = data.get("message", "").lower()
+        context = data.get("context", {}) 
+        
+        response = {
+            "success": True,
+            "message": "I didn't understand that command.",
+            "action": None,
+            "data": None
+        }
+
+        if "change" in message or "set" in message or "update" in message:
+            import re
+            match = re.search(r'(?:change|set|update)\s+(.*?)\s+to\s+(.*)', message, re.IGNORECASE)
+            if match:
+                field_raw = match.group(1).strip().lower()
+                value = match.group(2).strip()
+                field_map = {
+                    "title": "job_title", "role": "job_title",
+                    "company": "company", "location": "location",
+                    "experience": "experience_level", "education": "educational_requirements"
+                }
+                field = field_map.get(field_raw, field_raw)
+                response["message"] = f"I've updated the {field_raw} to '{value}'. Please review the changes."
+                response["action"] = "UPDATE_PROFILE_FIELD"
+                response["data"] = {"field": field, "value": value}
+            else:
+                response["message"] = "I can update the profile. Try saying 'Change title to Senior Developer'."
+        
+        elif "create" in message and "new" in message:
+            response["message"] = "Sure, let's start a new profile. What's the job title?"
+            response["action"] = "CREATE_NEW_PROFILE"
+            
+        elif "approve" in message:
+            response["message"] = "Great! I'll approve this profile now."
+            response["action"] = "APPROVE_PROFILE"
+            
+        else:
+            if not context.get("profile"):
+                response["message"] = "I can help you create a job profile. Describe the position you're hiring for."
+            else:
+                response["message"] = "I can help you modify this profile. You can ask me to change the title, location, or other details."
+            
+        return jsonify(response)
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 # ---------------- Run App ----------------
 if __name__ == "__main__":

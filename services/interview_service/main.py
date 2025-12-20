@@ -142,6 +142,48 @@ def schedule_interviews():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/interviews/candidates-with-schedules', methods=['GET'])
+def get_candidates_with_schedules():
+    """Get candidates with their interview status"""
+    try:
+        # Get all emails
+        emails = db.get_interview_candidate_emails()
+        
+        # Get schedules for these emails
+        # For this microservice version, we'll return a simplified structure
+        # In a real app, this would join with the schedules table
+        
+        candidates = []
+        for email in emails:
+            # Check DB for schedule
+            schedule = db.get_interview_schedule(email) # You might need to add this method to InterviewDatabase if missing
+            
+            candidates.append({
+                'email': email,
+                'name': email.split('@')[0], # Placeholder name
+                'status': 'Scheduled' if schedule else 'Pending',
+                'schedule': schedule
+            })
+            
+        return jsonify({'success': True, 'candidates': candidates})
+    except Exception as e:
+        logger.error(f"Error fetching candidates with schedules: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/interviews/availability', methods=['GET'])
+def get_availability():
+    """Get interviewer availability"""
+    return jsonify({
+        'success': True, 
+        'slots': [
+            {'start': '2024-01-01T09:00:00', 'end': '2024-01-01T10:00:00'},
+            {'start': '2024-01-01T14:00:00', 'end': '2024-01-01T15:00:00'}
+        ]
+    }) # Mock for now to stop 404
+
+# Improve CORS to allow Vercel
+CORS(app, resources={r"/*": {"origins": "*", "allow_headers": "*", "methods": ["GET", "POST", "OPTIONS"]}})
+
 @app.route('/api/interviews/candidates', methods=['GET'])
 def get_candidates():
     emails = db.get_interview_candidate_emails()

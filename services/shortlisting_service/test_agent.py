@@ -1,11 +1,11 @@
-import sys
-import os
-import json
-from typing import List, Dict
-
-# Add backend to path to import AIAgent
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-from backend.agent_orchestrator import AIAgent
+# Local import for microservice
+try:
+    from utils.ai_agent import AIAgent
+except ImportError:
+    # Fallback if running from different directory context
+    import sys
+    sys.path.append(os.path.dirname(__file__))
+    from utils.ai_agent import AIAgent
 
 class TestGenerationAgent(AIAgent):
     """Autonomous agent for generating test questions"""
