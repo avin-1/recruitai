@@ -7,38 +7,46 @@ import os
 from bson.objectid import ObjectId
 import math
 from email_service import EmailService
-
-# Advanced scoring imports (Lazy loaded)
 try:
+    # Optional advanced scoring imports
+    # Optional advanced scoring imports
     from agents.resumeandmatching.utils.resume_parser import parse_resume as _parse_resume
+    # from agents.resumeandmatching.utils.matcher import semantic_match as _semantic_match # Lazy load
+    # from agents.resumeandmatching.utils.llm_scorer import compute_score as _llm_score # Lazy load
     _ADVANCED_SCORING = True
 except Exception:
     _ADVANCED_SCORING = False
     _parse_resume = None
+    # _semantic_match = None
+    # _llm_score = None
+import fitz  # PyMuPDF (fallback text extraction)
 
-import fitz  # PyMuPDF
-
-# Load .env
+# Load .env explicitly
+# Load .env explicitly (but don't override system env vars)
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=False)
 MONGO_URI = os.getenv("MONGODB_URI")
 
 if not MONGO_URI:
-    print("Error: MONGODB_URI not found in environment!")
+    print("CRITICAL ERROR: MONGODB_URI not found in environment!", flush=True)
+    # raise ValueError("MONGODB_URI not found in .env") # Don't crash yet, let it try
 else:
-    # Masked URI for logs
+    # Print masked URI for debugging
     masked_uri = MONGO_URI.replace(MONGO_URI.split('@')[0], 'mongodb+srv://****:****') if '@' in MONGO_URI else '****'
-    
+    print(f"Connecting to MongoDB with URI: {masked_uri}", flush=True)
+
 # MongoDB setup
-DB_NAME = "profiles"
-COLLECTION_NAME = "json_files"
+DB_NAME = "profiles"           # replace with your database name
+COLLECTION_NAME = "json_files"   # replace with your collection name
+# Add timeout to fail fast if DB is unreachable (5 seconds)
 client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
 db = client[DB_NAME]
 collection = db[COLLECTION_NAME]
 applications_col = db.get_collection("applications")
-
+# Ensure unique (job_id, email) to prevent duplicate applications per job
 try:
     applications_col.create_index([("job_id", 1), ("email", 1)], unique=True)
-except Exception:
+except Exception as e:
+    print(f"WARNING: Could not create index on MongoDB: {e}", flush=True)
     pass
 
 # Flask app

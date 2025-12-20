@@ -34,32 +34,26 @@ const buildBase = (envValue, localPort, remoteBasePath = '/api') => {
 };
 
 export const SHORTLISTING_API_BASE = buildBase(
-  import.meta.env.VITE_SHORTLISTING_URL || import.meta.env.VITE_SHORTLISTING_API_URL,
+  import.meta.env.VITE_SHORTLISTING_API_URL,
   5001,
   '/api'
 );
 
 export const INTERVIEW_API_BASE = buildBase(
-  import.meta.env.VITE_INTERVIEW_URL || import.meta.env.VITE_INTERVIEW_API_URL,
+  import.meta.env.VITE_INTERVIEW_API_URL,
   5002,
   '/api'
 );
 
 export const CORE_API_BASE = buildBase(
-  import.meta.env.VITE_API_URL || import.meta.env.VITE_CORE_API_BASE_URL,
+  import.meta.env.VITE_CORE_API_BASE_URL,
   8080,
   ''
 );
 
 export const SETTINGS_API_BASE = buildBase(
-  import.meta.env.VITE_SHORTLISTING_URL || import.meta.env.VITE_SHORTLISTING_API_URL,
-  5001,
+  import.meta.env.VITE_SETTINGS_API_URL,
+  5003,
   '/api'
-);
-
-export const NOTIFICATION_API_BASE = buildBase(
-  import.meta.env.VITE_NOTIFICATION_URL || import.meta.env.VITE_NOTIFICATION_API_URL,
-  5005,
-  ''
 );
 

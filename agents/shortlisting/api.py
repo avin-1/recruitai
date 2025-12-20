@@ -75,7 +75,9 @@ def get_llm_analyzer():
             
             # Create analyzer WITHOUT loading model initially (load_model=False)
             # Model will load on first use if needed
+            print("Initializing LLM analyzer (model will load on first use)...")
             llm_analyzer = _llm_analyzer_module(load_model=False)
+            print("LLM analyzer initialized (model not loaded yet)")
         except Exception as e:
             print(f"Warning: Failed to initialize LLM analyzer: {e}")
             print("Falling back to rule-based analysis only")

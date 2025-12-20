@@ -1,8 +1,0 @@
-Flask
-flask-cors
-pymongo
-python-dotenv
-requests
-PyMuPDF
-openai
-httpx

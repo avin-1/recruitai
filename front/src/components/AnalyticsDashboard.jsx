@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, FunnelChart, Funnel, LabelList } from 'recharts';
-import { NOTIFICATION_API_BASE } from '@/lib/apiConfig';
 
 const AnalyticsDashboard = () => {
     const [summary, setSummary] = useState(null);
@@ -13,9 +12,9 @@ const AnalyticsDashboard = () => {
         const fetchData = async () => {
             try {
                 const [summaryRes, funnelRes, recentRes] = await Promise.all([
-                    fetch(`${NOTIFICATION_API_BASE}/api/analytics/summary`),
-                    fetch(`${NOTIFICATION_API_BASE}/api/analytics/funnel`),
-                    fetch(`${NOTIFICATION_API_BASE}/api/analytics/recent`)
+                    fetch('http://localhost:5005/api/analytics/summary'),
+                    fetch('http://localhost:5005/api/analytics/funnel'),
+                    fetch('http://localhost:5005/api/analytics/recent')
                 ]);
 
                 const summaryData = await summaryRes.json();

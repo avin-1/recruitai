@@ -1,29 +1,26 @@
+print("DEBUG: Starting interview_api imports...", flush=True)
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+print("DEBUG: Flask imported", flush=True)
 import datetime
+from interview_database import InterviewDatabase
+print("DEBUG: InterviewDatabase imported", flush=True)
 import os
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-import sqlite3
-import logging
-import uuid
-import pytz
-import sys
-
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
+print("DEBUG: Google libs imported", flush=True)
+from dotenv import load_dotenv
+import sqlite3
+import logging
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
-from dotenv import load_dotenv
-
-from interview_database import InterviewDatabase
-from backend.email_service import EmailService
-
-# Add parent directory to path to allow imports from backend
+print("DEBUG: Google auth libs imported", flush=True)
+from datetime import time as dtime
+import uuid
+import pytz
+import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-
 # Lazy load scheduling agent
 scheduling_agent = None
 def get_scheduling_agent():
@@ -33,12 +30,16 @@ def get_scheduling_agent():
             from backend.agent_orchestrator import scheduling_agent as agent
             scheduling_agent = agent
         except Exception as e:
-            # Fallback dummy agent if orchestrator not available
+            print(f"Warning: Failed to load scheduling agent: {e}")
             class DummyAgent:
                 def notify(self, *args, **kwargs): pass
                 def propose_best_slots(self, *args, **kwargs): return []
             scheduling_agent = DummyAgent()
     return scheduling_agent
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+print("DEBUG: All imports done", flush=True)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("interview_api")
@@ -265,9 +266,9 @@ def get_google_calendar_availability(hr_email, days=5):
     except Exception as e:
         return f"Error fetching availability: {str(e)}"
 
-
+print("DEBUG: Initializing InterviewDatabase...", flush=True)
 db = InterviewDatabase()
-
+print("DEBUG: InterviewDatabase initialized", flush=True)
 
 @app.before_request
 def log_request_info():
@@ -783,6 +784,10 @@ def send_offer_letter():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
+    print("===============================")
+    print("Interview Scheduler Flask API Ready!")
+    print("Listening for requests on http://localhost:5002 ...")
+    print("===============================")
     # Production ready: disable debug, allow port configuration
     port = int(os.environ.get("PORT", 5002))
     app.run(host='0.0.0.0', port=port, debug=False)

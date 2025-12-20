@@ -7,12 +7,10 @@ from shortlisting_database import DatabaseManager
 # Don't import LLMPerformanceAnalyzer at module level - it loads large models
 # import llm_analyzer - will be imported lazily
 import datetime
-import datetime
 import sys
 import os
-# sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-# from backend.email_service import EmailService
-
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+from backend.email_service import EmailService
 
 # Lazy load shortlisting agent to prevent crashes on import
 shortlisting_agent = None
@@ -20,12 +18,8 @@ def get_shortlisting_agent():
     global shortlisting_agent
     if shortlisting_agent is None:
         try:
-            try:
-                from utils.agent_orchestrator import shortlisting_agent as agent
-                shortlisting_agent = agent
-            except ImportError:
-                 from utils.agent_orchestrator import shortlisting_agent as agent
-                 shortlisting_agent = agent
+            from backend.agent_orchestrator import shortlisting_agent as agent
+            shortlisting_agent = agent
         except Exception as e:
             print(f"Warning: Failed to load shortlisting agent: {e}")
             print("Notifications will be disabled but system will continue working")
@@ -44,7 +38,7 @@ CORS(app, resources={r"/*": {"origins": "*", "allow_headers": "*", "methods": ["
 # Initialize services
 test_service = TestService()
 db_manager = DatabaseManager()
-# email_service = EmailService() # Removed in microservice refactor
+email_service = EmailService()
 # test_gen_agent = TestGenerationAgent() # Moved to lazy load
 
 # Lazy load test generation agent
@@ -59,18 +53,9 @@ def get_test_gen_agent():
         except Exception as e:
             print(f"Warning: Failed to load test generation agent: {e}")
             # Return a dummy agent that fails gracefully
-            # Return a dummy agent that fails gracefully
             class DummyTestAgent:
-                def generate_questions(self, topic, count, difficulty, type):
-                    # Fail gracefully by defaulting to basic placeholder questions
-                    return [
-                        {
-                            "question": f"Sample question 1 about {topic}",
-                            "options": ["A", "B", "C", "D"],
-                            "correct_answer": "A",
-                            "explanation": "Service unavailable, returning mock data."
-                        }
-                    ]
+                def generate_questions(self, *args, **kwargs):
+                    raise Exception(f"Test Generation Agent unavailable: {e}")
             test_gen_agent = DummyTestAgent()
     return test_gen_agent
 
@@ -548,7 +533,9 @@ def get_notifications():
     """Get all AI agent notifications from shortlisting service"""
     try:
         import sys
-        from utils.agent_orchestrator import get_notifications as get_notifs
+        import os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+        from backend.agent_orchestrator import get_notifications as get_notifs
         notifications = get_notifs()
         return jsonify({'success': True, 'notifications': notifications})
     except Exception as e:
@@ -561,7 +548,9 @@ def mark_notification_read(index):
     """Mark notification as read"""
     try:
         import sys
-        from utils.agent_orchestrator import mark_notification_read as mark_read
+        import os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+        from backend.agent_orchestrator import mark_notification_read as mark_read
         mark_read(index)
         return jsonify({'success': True})
     except Exception as e:
@@ -573,7 +562,9 @@ def clear_notifications():
     """Clear all notifications"""
     try:
         import sys
-        from utils.agent_orchestrator import clear_all_notifications
+        import os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+        from backend.agent_orchestrator import clear_all_notifications
         clear_all_notifications()
         return jsonify({'success': True})
     except Exception as e:
@@ -1102,7 +1093,7 @@ def delete_candidate_result(test_id):
 
 # --- Prompt Settings Endpoints ---
 
-from utils.prompt_manager import PromptManager
+from prompt_manager import PromptManager
 prompt_manager = PromptManager()
 
 @app.route('/api/settings/prompts', methods=['GET'])
