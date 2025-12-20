@@ -28,7 +28,8 @@ load_dotenv()
 NOTIFICATION_SERVICE_URL = "http://localhost:5005"
 
 app = Flask(__name__)
-CORS(app)
+# Explicitly allow all origins for Vercel/Render compatibility
+CORS(app, resources={r"/*": {"origins": "*", "allow_headers": "*", "methods": ["GET", "POST", "OPTIONS"]}})
 
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
 GOOGLE_SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE")
@@ -146,28 +147,9 @@ def schedule_interviews():
 def get_candidates_with_schedules():
     """Get candidates with their interview status"""
     try:
-        # Get all emails
-        emails = db.get_interview_candidate_emails()
-        
-        # Get schedules for these emails
-        # For this microservice version, we'll return a simplified structure
-        # In a real app, this would join with the schedules table
-        
-        candidates = []
-        for email in emails:
-            # Check DB for schedule
-            schedule = db.get_interview_schedule(email) # You might need to add this method to InterviewDatabase if missing
-            
-            candidates.append({
-                'email': email,
-                'name': email.split('@')[0], # Placeholder name
-                'status': 'Scheduled' if schedule else 'Pending',
-                'schedule': schedule
-            })
-            
+        candidates = db.get_candidates_with_schedules()
         return jsonify({'success': True, 'candidates': candidates})
     except Exception as e:
-        logger.error(f"Error fetching candidates with schedules: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/interviews/availability', methods=['GET'])

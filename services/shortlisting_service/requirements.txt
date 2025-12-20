@@ -2,3 +2,5 @@ Flask
 flask-cors
 requests
 python-dotenv
+openai
+langgraph

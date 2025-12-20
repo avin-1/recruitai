@@ -4,3 +4,5 @@ pymongo
 python-dotenv
 requests
 PyMuPDF
+openai
+httpx
