@@ -1,0 +1,27 @@
+services:
+  redai-nginx:
+    image: nginx:1.25-alpine
+    container_name: redai-nginx-share
+    restart: unless-stopped
+    ports:
+      - "8088:80"
+    volumes:
+      - ./front/dist:/usr/share/nginx/html:ro
+      - ./infra/sharing/nginx-share.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - share_net
+
+  share-tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: redai-share-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://redai-nginx:80
+    depends_on:
+      - redai-nginx
+    networks:
+      - share_net
+
+networks:
+  share_net:
+    driver: bridge
+

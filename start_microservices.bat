@@ -1,0 +1,26 @@
+@echo off
+echo Starting REDAI Microservices...
+
+echo Starting Notification Service (Port 5005)...
+start "Notification Service" cmd /k "cd services\notification_service && python main.py"
+
+echo Starting Parsing Service (Port 5006)...
+start "Parsing Service" cmd /k "cd services\parsing_service && python main.py"
+
+echo Starting ML Service (Matching) (Port 5004)...
+start "ML Service" cmd /k "cd services\ml_service && python main.py"
+
+echo Starting Core API (Port 8080)...
+start "Core API" cmd /k "cd services\core_api && python main.py"
+
+echo Starting Interview Service (Port 5002)...
+start "Interview Service" cmd /k "cd services\interview_service && python main.py"
+
+echo Starting Shortlisting Service (Port 5001)...
+start "Shortlisting Service" cmd /k "cd services\shortlisting_service && python main.py"
+
+echo Starting Frontend...
+start "Frontend" cmd /k "cd front && npm run dev"
+
+echo All services launched!
+pause

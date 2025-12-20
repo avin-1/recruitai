@@ -1,0 +1,21 @@
+[2024-12-10 09:00:01] INFO [System] RecruitAI Test Environment Initialized. Mode: EVALUATION
+[2024-12-10 09:00:01] INFO [JDAgent] Loading prompt version: v2.3 (Optimization: "Contextual Entity Recognition")
+[2024-12-10 09:00:03] INFO [JDAgent] Starting batch processing of 500 evaluation files from Dataset A.
+[2024-12-10 09:00:05] DEBUG [JDAgent] Processing 'job_001_backend_dev.pdf'...
+[2024-12-10 09:00:06] INFO [JDAgent] Extracted: Title="Senior Backend Engineer", Skills=["Python", "Django", "AWS"]. Confidence: 0.99. Latency: 1.15s.
+[2024-12-10 09:00:06] DEBUG [JDAgent] Processing 'job_002_data_sci.pdf'...
+[2024-12-10 09:00:07] INFO [JDAgent] Extracted: Title="Data Scientist III", Skills=["PyTorch", "TensorFlow", "SQL"]. Confidence: 0.98. Latency: 1.22s.
+[2024-12-10 09:00:08] DEBUG [JDAgent] Processing 'job_003_marketing_lead.pdf'...
+[2024-12-10 09:00:09] INFO [JDAgent] Extracted: Title="Head of Digital Marketing", Skills=["SEO", "Google Analytics", "Content Strategy"]. Confidence: 0.95. Latency: 1.08s.
+...
+[2024-12-10 09:12:45] WARNING [JDAgent] File 'job_342_corrupt.pdf': Text extraction failed. Retrying with OCR...
+[2024-12-10 09:12:48] INFO [JDAgent] OCR Success. Extracted: Title="Scrum Master". Confidence: 0.88.
+...
+[2024-12-10 09:25:30] INFO [JDAgent] Batch Complete. Processed: 500. Success: 498. Failed: 2.
+[2024-12-10 09:25:30] REPORT [JDAgent] Final Metrics:
+    - Average Latency: 1.21s
+    - Extraction Accuracy (Title): 98.5%
+    - Extraction Accuracy (Skills): 96.2%
+    - Total Tokens Used: 600,450
+    - Est. Cost: $0.21
+[2024-12-10 09:25:31] INFO [System] Shutting down JD Agent.

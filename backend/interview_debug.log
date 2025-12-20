@@ -1,0 +1,28 @@
+2025-12-06 03:02:51,703 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5002
+ * Running on http://192.168.0.124:5002
+2025-12-06 03:02:51,704 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-12-06 03:06:20,438 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8080
+ * Running on http://192.168.0.124:8080
+2025-12-06 03:06:20,439 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-12-06 03:06:20,452 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2025-12-06 03:07:12,794 - werkzeug - INFO -  * Detected change in 'C:\\Users\\Avinash\\OneDrive\\Desktop\\Final_EDAI\\wsgi.py', reloading
+2025-12-06 03:07:12,795 - werkzeug - INFO -  * Detected change in 'C:\\Users\\Avinash\\OneDrive\\Desktop\\Final_EDAI\\wsgi.py', reloading
+2025-12-06 03:07:12,947 - werkzeug - INFO -  * Detected change in 'C:\\Users\\Avinash\\OneDrive\\Desktop\\Final_EDAI\\backend\\email_service.py', reloading
+2025-12-06 03:07:12,948 - werkzeug - INFO -  * Detected change in 'C:\\Users\\Avinash\\OneDrive\\Desktop\\Final_EDAI\\backend\\email_service.py', reloading
+2025-12-06 03:07:12,949 - werkzeug - INFO -  * Detected change in 'C:\\Users\\Avinash\\OneDrive\\Desktop\\Final_EDAI\\backend\\email_service.py', reloading
+2025-12-06 03:07:12,955 - werkzeug - INFO -  * Detected change in 'C:\\Users\\Avinash\\OneDrive\\Desktop\\Final_EDAI\\agents\\interview\\interview_database.py', reloading
+2025-12-06 03:07:12,978 - werkzeug - INFO -  * Detected change in 'C:\\Users\\Avinash\\OneDrive\\Desktop\\Final_EDAI\\agents\\interview\\interview_database.py', reloading
+2025-12-06 03:07:12,997 - werkzeug - INFO -  * Detected change in 'C:\\Users\\Avinash\\OneDrive\\Desktop\\Final_EDAI\\agents\\interview\\interview_database.py', reloading
+2025-12-06 03:07:12,998 - werkzeug - INFO -  * Detected change in 'C:\\Users\\Avinash\\OneDrive\\Desktop\\Final_EDAI\\agents\\interview\\interview_database.py', reloading
+2025-12-06 03:07:13,017 - werkzeug - INFO -  * Detected change in 'C:\\Users\\Avinash\\OneDrive\\Desktop\\Final_EDAI\\agents\\interview\\interview_database.py', reloading
+2025-12-06 03:07:13,018 - werkzeug - INFO -  * Detected change in 'C:\\Users\\Avinash\\OneDrive\\Desktop\\Final_EDAI\\agents\\interview\\interview_database.py', reloading
+2025-12-06 03:07:13,019 - werkzeug - INFO -  * Detected change in 'C:\\Users\\Avinash\\OneDrive\\Desktop\\Final_EDAI\\agents\\interview\\interview_database.py', reloading
+2025-12-06 03:07:13,065 - werkzeug - INFO -  * Detected change in 'C:\\Users\\Avinash\\OneDrive\\Desktop\\Final_EDAI\\agents\\interview\\api.py', reloading
+2025-12-06 03:07:13,067 - werkzeug - INFO -  * Detected change in 'C:\\Users\\Avinash\\OneDrive\\Desktop\\Final_EDAI\\agents\\interview\\api.py', reloading
+2025-12-06 03:07:13,652 - werkzeug - INFO -  * Detected change in 'C:\\Users\\Avinash\\OneDrive\\Desktop\\Final_EDAI\\agents\\interview\\api.py', reloading
+2025-12-06 03:07:13,653 - werkzeug - INFO -  * Detected change in 'C:\\Users\\Avinash\\OneDrive\\Desktop\\Final_EDAI\\agents\\interview\\api.py', reloading
+2025-12-06 03:07:14,455 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)

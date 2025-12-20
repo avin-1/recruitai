@@ -1,0 +1,10 @@
+venv/
+backend.log
+frontend.log
+/node_modules
+.DS_Store
+__pycache__/
+"agents/interview/service_account.json" 
+"agents/interview/service_account.json" 
+"agents/interview/service_account.json" 
+env.txt

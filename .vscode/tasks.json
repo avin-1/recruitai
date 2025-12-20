@@ -1,0 +1,30 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Backend - Upload API",
+      "type": "shell",
+      "command": "venv\\Scripts\\activate && cd backend && python upload_api.py",
+      "problemMatcher": []
+    },
+    {
+      "label": "Agent - JobDescription",
+      "type": "shell",
+      "command": "venv\\Scripts\\activate && cd agents\\jobdescription && python main.py",
+      "problemMatcher": []
+    },
+    {
+      "label": "Agent - ResumeAndMatching",
+      "type": "shell",
+      "command": "venv\\Scripts\\activate && cd agents\\resumeandmatching && python main.py",
+      "problemMatcher": []
+    },
+    {
+      "label": "Frontend - NPM",
+      "type": "shell",
+      "command": "cd front && npm run dev",
+      "problemMatcher": []
+    }
+  ],
+  "inputs": []
+}

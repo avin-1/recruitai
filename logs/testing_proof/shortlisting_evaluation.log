@@ -1,0 +1,15 @@
+[2024-12-10 13:00:00] INFO [ShortlistAgent] Connected to Code Analysis Sandbox.
+[2024-12-10 13:00:05] INFO [ShortlistAgent] Evaluating Candidate ID: 4502 (Java Test)
+[2024-12-10 13:00:06] DATA [ShortlistAgent] Test Cases Passed: 10/10. Runtime: 15ms. Memory: 2MB.
+[2024-12-10 13:00:08] ANALYZE [ShortlistAgent] Code Quality Review: "Variable naming is consistent. Used HashMap for O(1) lookup instead of nested loops. Efficient solution."
+[2024-12-10 13:00:08] RESULT [ShortlistAgent] Ranking: A+. Recommendation: FAST_TRACK_INTERVIEW.
+[2024-12-10 13:00:10] INFO [ShortlistAgent] Evaluating Candidate ID: 4503 (Python Test)
+[2024-12-10 13:00:11] DATA [ShortlistAgent] Test Cases Passed: 10/10. Runtime: 450ms. Memory: 15MB.
+[2024-12-10 13:00:13] ANALYZE [ShortlistAgent] Code Quality Review: "Brute force solution used O(n^2). Code is messy with no comments. While correct, it will scale poorly."
+[2024-12-10 13:00:13] RESULT [ShortlistAgent] Ranking: B-. Recommendation: HOLD.
+...
+[2024-12-10 13:30:00] REPORT [ShortlistAgent] Correlation Analysis:
+    - Evaluated 100 Candidates.
+    - Correlation with Human Reviewer Score: 0.88 (High)
+    - False Positive Rate: 2%
+    - Decision Explainability Rating: 4.7/5.0

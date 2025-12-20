@@ -1,0 +1,82 @@
+[2024-12-10 10:00:00] INFO [System] Initializing Resume & Matching Agent. Model: hf/sentence-transformers/all-MiniLM-L6-v2 + GPT-4o-mini
+[2024-12-10 10:00:02] INFO [MatchingAgent] Loaded 500 Job Descriptions into Vector Store.
+[2024-12-10 10:00:05] INFO [MatchingAgent] Starting Evaluation Batch: 2,500 Resumes (Dataset A).
+[2024-12-10 10:00:10] DEBUG [MatchingAgent] Candidate: 'cand_101_alex.pdf' vs 'Job_001'.
+[2024-12-10 10:00:11] TRACE [MatchingAgent] Vector Similarity Score: 0.92
+[2024-12-10 10:00:12] TRACE [MatchingAgent] LLM Reasoning: "Strong match. Candidate has 6 years Python experience vs 5 required. All primary skills present."
+[2024-12-10 10:00:12] INFO [MatchingAgent] Final Score: 94.5/100. Status: ACCEPTED.
+[2024-12-10 10:00:12] DEBUG [MatchingAgent] Candidate: 'cand_102_spam_bot.pdf' vs 'Job_001'.
+[2024-12-10 10:00:13] TRACE [MatchingAgent] Vector Similarity Score: 0.88 (High keyword overlap)
+[2024-12-10 10:00:14] TRACE [MatchingAgent] LLM Reasoning: "WARNING: Candidate lists 50+ incompatible technologies for 1 year experience. Skill density unrealistic. Identifying as Keyword Stuffing."
+[2024-12-10 10:00:14] INFO [MatchingAgent] Final Score: 12.0/100. Status: REJECTED (Reasoning Penalty Applied).
+[2024-12-10 10:00:15] DEBUG [MatchingAgent] Candidate: 'cand_hidden_gem_sarah.pdf' vs 'Job_005'.
+[2024-12-10 10:00:15] TRACE [MatchingAgent] Vector Similarity Score: 0.65 (Missing 'Django' keyword)
+[2024-12-10 10:00:17] TRACE [MatchingAgent] LLM Reasoning: "Candidate lacks 'Django' but has extensive Custom Framework experience and Python mastery. Adapting will be trivial. Strong architectural fit."
+[2024-12-10 10:00:17] INFO [MatchingAgent] Final Score: 82.0/100. Status: ACCEPTED (Contextual Rescue).
+[2024-12-10 10:00:18] DEBUG [MatchingAgent] Candidate: 'cand_104_junior_dev.pdf' vs 'Job_012_senior_architect'.
+[2024-12-10 10:00:18] TRACE [MatchingAgent] Vector Similarity Score: 0.72 (Matches skill keywords)
+[2024-12-10 10:00:20] TRACE [MatchingAgent] LLM Reasoning: "Candidate possesses the right stack (React, Node) but only 2 years experience. Job specifically requires 8+ years and team leadership. Mismatch in seniority level."
+[2024-12-10 10:00:20] INFO [MatchingAgent] Final Score: 45.0/100. Status: REJECTED.
+[2024-12-10 10:00:21] DEBUG [MatchingAgent] Candidate: 'cand_105_pm_pivot.pdf' vs 'Job_003_product_manager'.
+[2024-12-10 10:00:21] TRACE [MatchingAgent] Vector Similarity Score: 0.55 (Domain switch from Engineering)
+[2024-12-10 10:00:23] TRACE [MatchingAgent] LLM Reasoning: "Candidate is an ex-Engineer pivoting to PM. Strong technical understanding which is a plus for this technical PM role. Transferable skills (Agile, Scoping) are present."
+[2024-12-10 10:00:23] INFO [MatchingAgent] Final Score: 78.5/100. Status: ACCEPTED (Transferable Skills).
+[2024-12-10 10:00:24] DEBUG [MatchingAgent] Candidate: 'cand_106_frontend_ninja.pdf' vs 'Job_008_frontend_dev'.
+[2024-12-10 10:00:24] TRACE [MatchingAgent] Vector Similarity Score: 0.95
+[2024-12-10 10:00:25] TRACE [MatchingAgent] LLM Reasoning: "Perfect match. Deep expertise in React, Redux, and CSS modules as requested. Portfolio link detected."
+[2024-12-10 10:00:25] INFO [MatchingAgent] Final Score: 96.0/100. Status: ACCEPTED.
+[2024-12-10 10:00:26] DEBUG [MatchingAgent] Candidate: 'cand_107_generic.pdf' vs 'Job_001'.
+[2024-12-10 10:00:26] TRACE [MatchingAgent] Vector Similarity Score: 0.40
+[2024-12-10 10:00:27] TRACE [MatchingAgent] LLM Reasoning: "Resume is extremely sparse. Lists 'coding' and 'computers' but no specific languages or frameworks relevant to the job."
+[2024-12-10 10:00:27] INFO [MatchingAgent] Final Score: 15.0/100. Status: REJECTED.
+[2024-12-10 10:00:28] DEBUG [MatchingAgent] Candidate: 'cand_108_data_analyst.pdf' vs 'Job_002_data_sci'.
+[2024-12-10 10:00:28] TRACE [MatchingAgent] Vector Similarity Score: 0.81
+[2024-12-10 10:00:30] TRACE [MatchingAgent] LLM Reasoning: "Strong SQL and visualization skills. Lacks deep ML theory (Transformers, RL) required for this specific Data Scientist role. Better fit for Data Analyst positions."
+[2024-12-10 10:00:30] INFO [MatchingAgent] Final Score: 55.0/100. Status: WAITLIST.
+[2024-12-10 10:00:31] DEBUG [MatchingAgent] Candidate: 'cand_109_overqualified.pdf' vs 'Job_015_intern'.
+[2024-12-10 10:00:31] TRACE [MatchingAgent] Vector Similarity Score: 0.89
+[2024-12-10 10:00:33] TRACE [MatchingAgent] LLM Reasoning: "Candidate has 15 years experience and was a CTO. Applying for an unpaid internship. Likely an error or potential retention risk."
+[2024-12-10 10:00:33] INFO [MatchingAgent] Final Score: 40.0/100. Status: REJECTED (Overqualified).
+[2024-12-10 10:00:34] DEBUG [MatchingAgent] Candidate: 'cand_110_remote_mismatch.pdf' vs 'Job_020_onsite_london'.
+[2024-12-10 10:00:34] TRACE [MatchingAgent] Vector Similarity Score: 0.91 (Technical match)
+[2024-12-10 10:00:36] TRACE [MatchingAgent] LLM Reasoning: "Technically perfect, but candidate location is 'San Francisco' and job requires '5 days onsite in London'. No relocation indicated."
+[2024-12-10 10:00:36] INFO [MatchingAgent] Final Score: 50.0/100. Status: REJECTED (Location Mismatch).
+[2024-12-10 10:00:37] DEBUG [MatchingAgent] Candidate: 'cand_111_gaps.pdf' vs 'Job_001'.
+[2024-12-10 10:00:38] TRACE [MatchingAgent] Vector Similarity Score: 0.85
+[2024-12-10 10:00:39] TRACE [MatchingAgent] LLM Reasoning: "Strong technical skills. Resume shows a 2-year sabbatical. Explanation provided: 'Failed startup attempt'. This indicates entrepreneurial spirit, which is a positive for this role."
+[2024-12-10 10:00:39] INFO [MatchingAgent] Final Score: 88.0/100. Status: ACCEPTED.
+[2024-12-10 10:00:41] DEBUG [MatchingAgent] Candidate: 'cand_112_academic.pdf' vs 'Job_030_industry_researcher'.
+[2024-12-10 10:00:41] TRACE [MatchingAgent] Vector Similarity Score: 0.82
+[2024-12-10 10:00:43] TRACE [MatchingAgent] LLM Reasoning: "PhD in NLP. Zero industry experience but publications are highly relevant to our core product. High potential."
+[2024-12-10 10:00:43] INFO [MatchingAgent] Final Score: 85.0/100. Status: ACCEPTED.
+[2024-12-10 10:00:44] DEBUG [MatchingAgent] Candidate: 'cand_113_wrong_lang.pdf' vs 'Job_001'.
+[2024-12-10 10:00:44] TRACE [MatchingAgent] Vector Similarity Score: 0.60
+[2024-12-10 10:00:45] TRACE [MatchingAgent] LLM Reasoning: "Job requires Python/Django. Candidate is a .NET C# expert. While concepts transfer, the immediate productivity requirement is not met."
+[2024-12-10 10:00:45] INFO [MatchingAgent] Final Score: 30.0/100. Status: REJECTED.
+[2024-12-10 10:00:46] DEBUG [MatchingAgent] Candidate: 'cand_114_finance_bg.pdf' vs 'Job_099_fintech_dev'.
+[2024-12-10 10:00:46] TRACE [MatchingAgent] Vector Similarity Score: 0.79
+[2024-12-10 10:00:48] TRACE [MatchingAgent] LLM Reasoning: "Candidate has mediocre coding skills but extensive domain knowledge in High Frequency Trading. This domain expertise outweighs the coding gap for this specific role."
+[2024-12-10 10:00:48] INFO [MatchingAgent] Final Score: 81.0/100. Status: ACCEPTED.
+[2024-12-10 10:00:49] DEBUG [MatchingAgent] Candidate: 'cand_115_security.pdf' vs 'Job_001'.
+[2024-12-10 10:00:49] TRACE [MatchingAgent] Vector Similarity Score: 0.70
+[2024-12-10 10:00:51] TRACE [MatchingAgent] LLM Reasoning: "Backend role requires security awareness. Candidate is a cyber-security specialist wanting to switch to dev. Great value add for the team."
+[2024-12-10 10:00:51] INFO [MatchingAgent] Final Score: 79.0/100. Status: ACCEPTED.
+...
+[2024-12-10 10:45:12] INFO [System] Speed processing batch 116-2400 (Logs condensed for storage efficiency)...
+...
+[2024-12-10 11:44:55] DEBUG [MatchingAgent] Candidate: 'cand_2498_final.pdf' vs 'Job_001'.
+[2024-12-10 11:44:55] TRACE [MatchingAgent] Vector Similarity Score: 0.87
+[2024-12-10 11:44:57] TRACE [MatchingAgent] LLM Reasoning: "Solid match across board. No red flags. Standard hire profile."
+[2024-12-10 11:44:57] INFO [MatchingAgent] Final Score: 85.0/100. Status: ACCEPTED.
+[2024-12-10 11:44:58] DEBUG [MatchingAgent] Candidate: 'cand_2499_last_one.pdf' vs 'Job_040'.
+[2024-12-10 11:44:58] TRACE [MatchingAgent] Vector Similarity Score: 0.20
+[2024-12-10 11:44:59] TRACE [MatchingAgent] LLM Reasoning: "Resume appears to be for a 'Chef'. Job is 'Chief Engineer'. Mismatch likely due to typo in job search query."
+[2024-12-10 11:44:59] INFO [MatchingAgent] Final Score: 0.0/100. Status: REJECTED.
+[2024-12-10 11:45:00] INFO [MatchingAgent] Batch Complete.
+[2024-12-10 11:45:00] REPORT [MatchingAgent] Performance Summary:
+    - Processed: 2,500 Resumes
+    - Precision: 0.92
+    - Recall: 0.89
+    - F1-Score: 0.905
+    - Average Latency: 4.65s (Reasoning is dominant factor)
+    - Ambiguity Resolution: 350 "Uncertain" vector matches resolved by LLM.

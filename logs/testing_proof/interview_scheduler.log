@@ -1,0 +1,20 @@
+[2024-12-11 09:00:00] INFO [SchedulerAgent] Fetching HR Calendar Availability...
+[2024-12-11 09:00:01] INFO [SchedulerAgent] Found 14 free slots for 2024-12-12.
+[2024-12-11 09:00:01] INFO [SchedulerAgent] Fetching Candidate (email: candidate.a@example.com) Preferences...
+[2024-12-11 09:00:01] DATA [SchedulerAgent] Candidate Pref: "Morning preferred, not Monday."
+[2024-12-11 09:00:02] SOLVER [SchedulerAgent] Optimizing slots...
+[2024-12-11 09:00:02] PROPOSAL [SchedulerAgent] Sending Invite: 2024-12-12 10:00 AM.
+[2024-12-11 09:00:05] SUCCESS [SchedulerAgent] Candidate Accepted. Booking Confirmed.
+...
+[2024-12-11 09:15:00] INFO [SchedulerAgent] Handling Conflict Scenario: Candidate B vs Candidate C.
+[2024-12-11 09:15:01] WARN [SchedulerAgent] Slot 2:00 PM requested by both.
+[2024-12-11 09:15:02] SOLVER [SchedulerAgent] Priority check: Candidate B score (95) > Candidate C score (88).
+[2024-12-11 09:15:03] ACTION [SchedulerAgent] Assigned 2:00 PM to Candidate B. Proposing 3:30 PM to Candidate C.
+[2024-12-11 09:15:06] SUCCESS [SchedulerAgent] Re-negotiation successful. Both booked.
+...
+[2024-12-11 10:00:00] REPORT [SchedulerAgent] Simulation Summary:
+    - Requests Handled: 50
+    - Successfully Scheduled: 49 (98%)
+    - Average Conflicts per Candidate: 0.05
+    - Automated Negotiation Rounds: 1.2
+    - Est. Time Saved: 75 hours
